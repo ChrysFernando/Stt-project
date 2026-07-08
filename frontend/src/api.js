@@ -7,7 +7,8 @@
 // ---------------------------------------------------------------
 
 const API = import.meta.env.VITE_API_URL || '/api'
-let live = false
+let live = false // full backend (Express) reachable
+let cloud = false // stateless serverless backend (Vercel): jobs kept in this browser
 
 export async function detectBackend() {
   try {
@@ -17,12 +18,32 @@ export async function detectBackend() {
     clearTimeout(t)
     const data = await res.json()
     live = Boolean(data.ok)
+    cloud = Boolean(data.stateless)
     return { mode: live ? 'live' : 'demo', sttConfigured: Boolean(data.sttConfigured) }
   } catch {
     live = false
+    cloud = false
     return { mode: 'demo', sttConfigured: false }
   }
 }
+
+// ---- Cloud-mode job store (browser localStorage; audio URLs live per session) ----
+const LS_KEY = 'voicescript-jobs'
+const sessionAudioUrls = {}
+const loadCloudJobs = () => {
+  try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]') } catch { return [] }
+}
+const saveCloudJobs = (jobsArr) => localStorage.setItem(LS_KEY, JSON.stringify(jobsArr))
+const withAudio = (j) => ({ ...j, audioUrl: sessionAudioUrls[j.id] || null })
+
+const fileToBase64 = (file) => new Promise((resolve, reject) => {
+  const r = new FileReader()
+  r.onload = () => resolve(String(r.result).split(',')[1])
+  r.onerror = reject
+  r.readAsDataURL(file)
+})
+
+const CLOUD_MAX_BYTES = 3.2 * 1024 * 1024
 
 // ================= DEMO DATA =================
 
@@ -70,12 +91,17 @@ function fromBackend(job) {
 // ================= Jobs (live-aware) =================
 
 export async function listJobs() {
+  if (cloud) return loadCloudJobs().map(withAudio)
   if (!live) return [...demoJobs]
   const res = await fetch(`${API}/transcriptions`)
   return (await res.json()).map(fromBackend)
 }
 
 export async function getJobById(id) {
+  if (cloud) {
+    const job = loadCloudJobs().find((j) => j.id === id)
+    return job ? withAudio(job) : null
+  }
   if (!live) return demoJobs.find((j) => j.id === id) || null
   const res = await fetch(`${API}/transcriptions/${id}`)
   if (!res.ok) return null
@@ -84,6 +110,55 @@ export async function getJobById(id) {
 
 export async function uploadAudio(file, classification, user, onUpdate) {
   logEvent(user, 'Upload', `${file.name} (${classification})`)
+
+  if (cloud) {
+    if (file.size > CLOUD_MAX_BYTES) {
+      throw new Error('For the online demo, files must be under ~3 MB (a few minutes of MP3). Please use a shorter clip.')
+    }
+    const now = new Date()
+    const pad = (n) => String(n).padStart(2, '0')
+    const job = {
+      id: `job-${crypto.randomUUID().slice(0, 8)}`,
+      fileName: file.name,
+      duration: null,
+      status: 'processing',
+      createdAt: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`,
+      language: null,
+      classification,
+      segments: [],
+      error: null,
+    }
+    const jobs = loadCloudJobs()
+    jobs.unshift(job)
+    saveCloudJobs(jobs)
+    sessionAudioUrls[job.id] = URL.createObjectURL(file)
+    onUpdate(await listJobs())
+
+    // Transcribe in the background; the transcripts list polls for the result.
+    ;(async () => {
+      try {
+        const data = await fileToBase64(file)
+        const res = await fetch(`${API}/transcribe`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileName: file.name, data }),
+        })
+        const body = await res.json().catch(() => ({}))
+        if (!res.ok) throw new Error(body.error || `Transcription failed (${res.status})`)
+        job.status = 'completed'
+        job.segments = body.segments
+        job.duration = body.durationSec
+        job.language = LANG_NAMES[body.languageCode] || body.languageCode || 'Sinhala + English'
+      } catch (e) {
+        job.status = 'failed'
+        job.error = e.message
+      }
+      const updated = loadCloudJobs().map((j) => (j.id === job.id ? job : j))
+      saveCloudJobs(updated)
+      onUpdate(await listJobs())
+    })()
+    return
+  }
 
   if (live) {
     const form = new FormData()
@@ -123,6 +198,11 @@ export async function uploadAudio(file, classification, user, onUpdate) {
 }
 
 export async function saveSegments(jobId, segments, user) {
+  if (cloud) {
+    saveCloudJobs(loadCloudJobs().map((j) => (j.id === jobId ? { ...j, segments } : j)))
+    logEvent(user, 'Edit', `Saved transcript changes (${jobId})`)
+    return
+  }
   if (live) {
     await fetch(`${API}/transcriptions/${jobId}`, {
       method: 'PUT',
@@ -137,6 +217,11 @@ export async function saveSegments(jobId, segments, user) {
 }
 
 export async function setClassification(jobId, tier, user) {
+  if (cloud) {
+    saveCloudJobs(loadCloudJobs().map((j) => (j.id === jobId ? { ...j, classification: tier } : j)))
+    logEvent(user, 'Admin', `Reclassified ${jobId} as ${tier}`)
+    return
+  }
   if (live) {
     await fetch(`${API}/transcriptions/${jobId}`, {
       method: 'PUT',

@@ -1,0 +1,11 @@
+# Vercel upload exclusions. NOTE: when this file exists it replaces .gitignore
+# for deployments — that is intentional, so api/_secret.json IS uploaded
+# (server-side only) while staying out of git via .gitignore.
+node_modules
+frontend/node_modules
+frontend/dist
+backend/node_modules
+backend/data
+backend/.env
+docs
+.git

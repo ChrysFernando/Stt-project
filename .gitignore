@@ -1,0 +1,6 @@
+# Secrets — never commit
+api/_secret.json
+backend/.env
+
+node_modules/
+.vercel/
