@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Icon from '../icons.jsx'
-import { getJob, saveSegments, setClassification, normalizedOf, logEvent } from '../api.js'
+import { getJobById, saveSegments, setClassification, normalizedOf, logEvent } from '../api.js'
 
 const TIER_COLOR = { Public: 'green', Restricted: 'amber', Confidential: 'red' }
 
@@ -11,13 +11,25 @@ function formatTime(sec) {
 }
 
 export default function EditorView({ user, jobId, onBack }) {
-  const job = useMemo(() => getJob(jobId), [jobId])
-  const [segments, setSegments] = useState(job ? job.segments.map((s) => ({ ...s })) : [])
-  const [tier, setTier] = useState(job ? job.classification : 'Restricted')
+  const [job, setJob] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [segments, setSegments] = useState([])
+  const [tier, setTier] = useState('Restricted')
   const [mode, setMode] = useState('raw') // 'raw' | 'normalized'
   const [currentTime, setCurrentTime] = useState(0)
   const [savedFlash, setSavedFlash] = useState(false)
   const audioRef = useRef(null)
+
+  useEffect(() => {
+    getJobById(jobId).then((j) => {
+      setJob(j)
+      if (j) {
+        setSegments(j.segments.map((s) => ({ ...s })))
+        setTier(j.classification || 'Restricted')
+      }
+      setLoading(false)
+    })
+  }, [jobId])
 
   useEffect(() => {
     if (!savedFlash) return
@@ -25,6 +37,9 @@ export default function EditorView({ user, jobId, onBack }) {
     return () => clearTimeout(t)
   }, [savedFlash])
 
+  if (loading) {
+    return <p className="muted" style={{ padding: 20 }}>Loading transcript…</p>
+  }
   if (!job) {
     return (
       <div>

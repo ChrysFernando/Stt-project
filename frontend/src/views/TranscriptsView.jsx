@@ -71,6 +71,8 @@ export default function TranscriptsView({ jobs, onOpen, onRefresh }) {
               <span className={`badge ${TIER_COLOR[job.classification]}`}>{job.classification}</span>
               {job.status === 'processing' ? (
                 <span className="badge amber"><span className="spinner" /> Transcribing…</span>
+              ) : job.status === 'failed' ? (
+                <span className="badge red" title={job.error || 'Transcription failed'}>Failed</span>
               ) : (
                 <>
                   <span className="badge green"><Icon name="check" size={12} /> Completed</span>

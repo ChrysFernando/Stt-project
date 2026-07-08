@@ -1,10 +1,31 @@
 // ---------------------------------------------------------------
-// MOCK API — temporary stand-in for the real backend.
-// All demo data lives here. When the backend is ready these
-// functions become fetch() calls; the screens will not change.
+// API layer with two modes:
+//  - LIVE: talks to the backend (/api/*) — real ElevenLabs transcription
+//  - DEMO: in-browser sample data, used when no backend is reachable
+// detectBackend() picks the mode once at startup.
+// Users, roles, audit and settings are still demo-only (next build step).
 // ---------------------------------------------------------------
 
-// ---- Transcript sample (raw = exactly as spoken, mixed language) ----
+const API = import.meta.env.VITE_API_URL || '/api'
+let live = false
+
+export async function detectBackend() {
+  try {
+    const ctrl = new AbortController()
+    const t = setTimeout(() => ctrl.abort(), 2500)
+    const res = await fetch(`${API}/health`, { signal: ctrl.signal })
+    clearTimeout(t)
+    const data = await res.json()
+    live = Boolean(data.ok)
+    return { mode: live ? 'live' : 'demo', sttConfigured: Boolean(data.sttConfigured) }
+  } catch {
+    live = false
+    return { mode: 'demo', sttConfigured: false }
+  }
+}
+
+// ================= DEMO DATA =================
+
 const RAW_SEGMENTS = [
   { id: 1, start: 0.0, end: 4.2, speaker: 'Speaker 1', lang: 'SI', conf: 0.97, text: 'සුභ උදෑසනක්. අද රැස්වීම ආරම්භ කරමු.' },
   { id: 2, start: 4.2, end: 9.8, speaker: 'Speaker 2', lang: 'MIX', conf: 0.91, text: 'Good morning sir. පළමු කාරණය ගැන report එක ready ද?' },
@@ -14,7 +35,6 @@ const RAW_SEGMENTS = [
   { id: 6, start: 28.4, end: 34.0, speaker: 'Speaker 1', lang: 'MIX', conf: 0.95, text: 'හොඳයි. එහෙනම් next item එකට යමු. Please refer page five of the agenda.' },
 ]
 
-// Normalized variant: same speech rendered fully in Sinhala (derived output).
 const NORMALIZED_TEXT = {
   1: 'සුභ උදෑසනක්. අද රැස්වීම ආරම්භ කරමු.',
   2: 'සුභ උදෑසනක් මහත්මයා. පළමු කාරණය ගැන වාර්තාව සූදානම්ද?',
@@ -30,15 +50,108 @@ export function normalizedOf(seg) {
 
 const cloneSegs = () => RAW_SEGMENTS.map((s) => ({ ...s }))
 
-// ---- Jobs ----
-let jobs = [
+let demoJobs = [
   { id: 'job-1', fileName: 'commission_hearing_2026-07-06.mp3', duration: 34, status: 'completed', createdAt: '2026-07-06 10:15', language: 'Sinhala + English', classification: 'Confidential', audioUrl: null, segments: cloneSegs() },
   { id: 'job-2', fileName: 'witness_statement_045.wav', duration: 1260, status: 'completed', createdAt: '2026-07-05 14:42', language: 'Sinhala', classification: 'Restricted', audioUrl: null, segments: cloneSegs() },
   { id: 'job-3', fileName: 'press_briefing_july.mp4', duration: 2705, status: 'completed', createdAt: '2026-07-03 09:05', language: 'Sinhala + English', classification: 'Public', audioUrl: null, segments: cloneSegs() },
 ]
-let nextId = 4
+let nextDemoId = 4
 
-// ---- Users ----
+const LANG_NAMES = { si: 'Sinhala', en: 'English', ta: 'Tamil' }
+
+function fromBackend(job) {
+  return {
+    ...job,
+    language: LANG_NAMES[job.language] || job.language || 'Sinhala + English',
+    audioUrl: `${API}/transcriptions/${job.id}/audio`,
+  }
+}
+
+// ================= Jobs (live-aware) =================
+
+export async function listJobs() {
+  if (!live) return [...demoJobs]
+  const res = await fetch(`${API}/transcriptions`)
+  return (await res.json()).map(fromBackend)
+}
+
+export async function getJobById(id) {
+  if (!live) return demoJobs.find((j) => j.id === id) || null
+  const res = await fetch(`${API}/transcriptions/${id}`)
+  if (!res.ok) return null
+  return fromBackend(await res.json())
+}
+
+export async function uploadAudio(file, classification, user, onUpdate) {
+  logEvent(user, 'Upload', `${file.name} (${classification})`)
+
+  if (live) {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('classification', classification)
+    const res = await fetch(`${API}/transcriptions`, { method: 'POST', body: form })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      throw new Error(body.error || `Upload failed (${res.status})`)
+    }
+    onUpdate(await listJobs())
+    return
+  }
+
+  // Demo mode: fake a 3-second transcription.
+  const now = new Date()
+  const pad = (n) => String(n).padStart(2, '0')
+  const job = {
+    id: `job-${nextDemoId++}`,
+    fileName: file.name,
+    duration: null,
+    status: 'processing',
+    createdAt: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`,
+    language: 'Sinhala + English',
+    classification,
+    audioUrl: URL.createObjectURL(file),
+    segments: [],
+  }
+  demoJobs = [job, ...demoJobs]
+  onUpdate(await listJobs())
+  setTimeout(async () => {
+    job.status = 'completed'
+    job.segments = cloneSegs()
+    job.duration = 34
+    onUpdate(await listJobs())
+  }, 3000)
+}
+
+export async function saveSegments(jobId, segments, user) {
+  if (live) {
+    await fetch(`${API}/transcriptions/${jobId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ segments }),
+    })
+  } else {
+    const job = demoJobs.find((j) => j.id === jobId)
+    if (job) job.segments = segments
+  }
+  logEvent(user, 'Edit', `Saved transcript changes (${jobId})`)
+}
+
+export async function setClassification(jobId, tier, user) {
+  if (live) {
+    await fetch(`${API}/transcriptions/${jobId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ classification: tier }),
+    })
+  } else {
+    const job = demoJobs.find((j) => j.id === jobId)
+    if (job) job.classification = tier
+  }
+  logEvent(user, 'Admin', `Reclassified ${jobId} as ${tier}`)
+}
+
+// ================= Users / roles / audit / settings (demo-only for now) =================
+
 let users = [
   { id: 1, name: 'A. Perera', email: 'a.perera@commission.gov.lk', role: 'Administrator', active: true, lastLogin: '2026-07-08 08:02' },
   { id: 2, name: 'S. Fernando', email: 's.fernando@commission.gov.lk', role: 'Transcription Clerk', active: true, lastLogin: '2026-07-08 07:45' },
@@ -48,7 +161,6 @@ let users = [
 ]
 let nextUserId = 6
 
-// ---- Roles & permissions ----
 export const PERMISSIONS = [
   'Upload audio',
   'View transcripts',
@@ -67,7 +179,6 @@ let roles = [
 ]
 let nextRoleId = 5
 
-// ---- Audit log (append-only) ----
 let audit = [
   { id: 1, time: '2026-07-08 08:02', user: 'A. Perera', action: 'Login', detail: 'Successful sign-in', ip: '10.20.1.14' },
   { id: 2, time: '2026-07-07 16:31', user: 'N. Jayawardena', action: 'Export', detail: 'witness_statement_045.wav → DOCX', ip: '10.20.1.22' },
@@ -89,58 +200,12 @@ export function logEvent(userName, action, detail) {
   }, ...audit]
 }
 
-// ---- Settings ----
 let settings = {
   minPasswordLength: 12,
   requireComplexity: true,
   sessionTimeoutMins: 30,
   maxConcurrentSessions: 1,
   storageMode: 'On-premises',
-}
-
-// ================= API surface =================
-export const listJobs = () => [...jobs]
-export const getJob = (id) => jobs.find((j) => j.id === id) || null
-
-export function uploadAudio(file, classification, user, onUpdate) {
-  const now = new Date()
-  const pad = (n) => String(n).padStart(2, '0')
-  const job = {
-    id: `job-${nextId++}`,
-    fileName: file.name,
-    duration: null,
-    status: 'processing',
-    createdAt: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`,
-    language: 'Sinhala + English',
-    classification,
-    audioUrl: URL.createObjectURL(file),
-    segments: [],
-  }
-  jobs = [job, ...jobs]
-  logEvent(user, 'Upload', `${file.name} (${classification})`)
-  onUpdate(listJobs())
-
-  setTimeout(() => {
-    job.status = 'completed'
-    job.segments = cloneSegs()
-    job.duration = 34
-    onUpdate(listJobs())
-  }, 3000)
-  return job
-}
-
-export function saveSegments(jobId, segments, user) {
-  const job = getJob(jobId)
-  if (!job) return
-  job.segments = segments
-  logEvent(user, 'Edit', `Saved changes to ${job.fileName}`)
-}
-
-export function setClassification(jobId, tier, user) {
-  const job = getJob(jobId)
-  if (!job) return
-  job.classification = tier
-  logEvent(user, 'Admin', `Reclassified ${job.fileName} as ${tier}`)
 }
 
 export const listUsers = () => [...users]
@@ -176,8 +241,8 @@ export function saveSettings(next, actor) {
   logEvent(actor, 'Admin', 'Updated security settings')
 }
 
-export const getStats = () => ({
-  transcripts: jobs.length + 125,
+export const getStats = (jobCount) => ({
+  transcripts: (jobCount ?? 3) + 125,
   audioHours: 342,
   avgConfidence: '93.4%',
   activeUsers: users.filter((u) => u.active).length + 13,

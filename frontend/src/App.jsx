@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Icon from './icons.jsx'
 import LoginView from './views/LoginView.jsx'
 import DashboardView from './views/DashboardView.jsx'
@@ -9,7 +9,7 @@ import UsersView from './views/UsersView.jsx'
 import RolesView from './views/RolesView.jsx'
 import AuditView from './views/AuditView.jsx'
 import SettingsView from './views/SettingsView.jsx'
-import { listJobs, logEvent } from './api.js'
+import { detectBackend, listJobs, logEvent } from './api.js'
 
 const NAV = [
   {
@@ -35,8 +35,20 @@ const NAV = [
 export default function App() {
   const [user, setUser] = useState(null)
   const [view, setView] = useState('dashboard')
-  const [jobs, setJobs] = useState(listJobs())
+  const [jobs, setJobs] = useState([])
   const [openJobId, setOpenJobId] = useState(null)
+  const [apiMode, setApiMode] = useState(null) // null | 'demo' | 'live'
+
+  async function refreshJobs() {
+    setJobs(await listJobs())
+  }
+
+  useEffect(() => {
+    detectBackend().then(({ mode }) => {
+      setApiMode(mode)
+      refreshJobs()
+    })
+  }, [])
 
   if (!user) {
     return (
@@ -83,6 +95,11 @@ export default function App() {
           </div>
         ))}
 
+        <div style={{ padding: '10px 12px' }}>
+          {apiMode === 'live' && <span className="badge green">● Live transcription</span>}
+          {apiMode === 'demo' && <span className="badge grey">Demo mode — sample data</span>}
+        </div>
+
         <div className="sidebar-user">
           <div className="avatar">{user.name.slice(0, 1)}</div>
           <div className="who">
@@ -96,12 +113,12 @@ export default function App() {
       </aside>
 
       <main className="content">
-        {view === 'dashboard' && <DashboardView user={user} goto={setView} />}
+        {view === 'dashboard' && <DashboardView user={user} goto={setView} jobCount={jobs.length} />}
         {view === 'upload' && (
           <UploadView user={user} onUploaded={setJobs} goToJobs={() => setView('transcripts')} />
         )}
         {view === 'transcripts' && (
-          <TranscriptsView jobs={jobs} onOpen={openTranscript} onRefresh={() => setJobs(listJobs())} />
+          <TranscriptsView jobs={jobs} onOpen={openTranscript} onRefresh={refreshJobs} />
         )}
         {view === 'editor' && openJobId && (
           <EditorView user={user} jobId={openJobId} onBack={() => setView('transcripts')} />

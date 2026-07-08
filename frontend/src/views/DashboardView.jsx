@@ -3,8 +3,8 @@ import { getStats, listAudit } from '../api.js'
 
 const ACTION_COLOR = { Login: 'blue', Upload: 'blue', Edit: 'amber', Export: 'green', View: 'grey', Admin: 'red' }
 
-export default function DashboardView({ user, goto }) {
-  const stats = getStats()
+export default function DashboardView({ user, goto, jobCount }) {
+  const stats = getStats(jobCount)
   const recent = listAudit().slice(0, 7)
 
   return (

@@ -11,7 +11,7 @@ export default function UploadView({ user, onUploaded, goToJobs }) {
   const [message, setMessage] = useState(null)
   const [tier, setTier] = useState('Restricted')
 
-  function handleFiles(files) {
+  async function handleFiles(files) {
     const file = files && files[0]
     if (!file) return
     const ok = ACCEPTED.some((ext) => file.name.toLowerCase().endsWith(ext))
@@ -19,9 +19,14 @@ export default function UploadView({ user, onUploaded, goToJobs }) {
       setMessage({ type: 'err', text: `"${file.name}" is not a supported format. Please use MP3, WAV, MP4 or M4A.` })
       return
     }
-    uploadAudio(file, tier, user.name, onUploaded)
-    setMessage({ type: 'ok', text: `"${file.name}" uploaded as ${tier}. Transcription started…` })
-    setTimeout(goToJobs, 900)
+    setMessage({ type: 'ok', text: `Uploading "${file.name}"…` })
+    try {
+      await uploadAudio(file, tier, user.name, onUploaded)
+      setMessage({ type: 'ok', text: `"${file.name}" uploaded as ${tier}. Transcription started…` })
+      setTimeout(goToJobs, 900)
+    } catch (e) {
+      setMessage({ type: 'err', text: e.message })
+    }
   }
 
   return (
