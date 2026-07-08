@@ -8,6 +8,7 @@ const MIME = {
   '.wav': 'audio/wav',
   '.mp4': 'video/mp4',
   '.m4a': 'audio/mp4',
+  '.webm': 'audio/webm',
 }
 
 const MAX_GAP_SECONDS = 1.0

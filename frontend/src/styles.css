@@ -269,6 +269,34 @@ td.muted, .muted { color: var(--muted); }
 .upload-note.err { color: var(--red); }
 .upload-note.ok { color: var(--green); }
 
+/* ---------- Record & dictate ---------- */
+.rec-stage { padding: 48px 24px; text-align: center; }
+.rec-stage h3 { font-size: 16px; margin-top: 18px; }
+.rec-stage .muted { font-size: 13px; margin-top: 4px; }
+.rec-btn {
+  width: 84px; height: 84px; border-radius: 50%;
+  border: none; margin: 0 auto; display: flex;
+  align-items: center; justify-content: center;
+  background: var(--accent-strong); color: #fff;
+  box-shadow: 0 0 0 10px var(--accent-soft);
+  transition: transform 0.15s;
+}
+.rec-btn:hover { transform: scale(1.05); }
+.rec-btn.recording {
+  background: var(--red);
+  box-shadow: 0 0 0 10px var(--red-soft);
+  animation: rec-pulse 1.6s ease-out infinite;
+}
+@keyframes rec-pulse {
+  0% { box-shadow: 0 0 0 6px var(--red-soft); }
+  50% { box-shadow: 0 0 0 16px rgba(240, 101, 90, 0.06); }
+  100% { box-shadow: 0 0 0 6px var(--red-soft); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rec-btn.recording { animation: none; }
+}
+.rec-timer { font-size: 26px; letter-spacing: 1px; }
+
 /* ---------- Transcript list ---------- */
 .list-tools { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
 .search-box {

@@ -3,6 +3,7 @@ import Icon from './icons.jsx'
 import LoginView from './views/LoginView.jsx'
 import DashboardView from './views/DashboardView.jsx'
 import UploadView from './views/UploadView.jsx'
+import RecordView from './views/RecordView.jsx'
 import TranscriptsView from './views/TranscriptsView.jsx'
 import EditorView from './views/EditorView.jsx'
 import UsersView from './views/UsersView.jsx'
@@ -17,6 +18,7 @@ const NAV = [
     items: [
       { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
       { id: 'upload', label: 'Upload Audio', icon: 'upload' },
+      { id: 'record', label: 'Record & Dictate', icon: 'mic' },
       { id: 'transcripts', label: 'Transcripts', icon: 'file' },
     ],
   },
@@ -116,6 +118,9 @@ export default function App() {
         {view === 'dashboard' && <DashboardView user={user} goto={setView} jobCount={jobs.length} />}
         {view === 'upload' && (
           <UploadView user={user} onUploaded={setJobs} goToJobs={() => setView('transcripts')} />
+        )}
+        {view === 'record' && (
+          <RecordView user={user} onUploaded={setJobs} goToJobs={() => setView('transcripts')} />
         )}
         {view === 'transcripts' && (
           <TranscriptsView jobs={jobs} onOpen={openTranscript} onRefresh={refreshJobs} />

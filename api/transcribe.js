@@ -1,6 +1,8 @@
 const { transcribeSmart } = require('./_stt.js')
 
-const ALLOWED_EXT = ['.mp3', '.wav', '.mp4', '.m4a']
+// Spec formats plus .webm, the browser's native microphone-recording format
+// used by the Record & Dictate screen.
+const ALLOWED_EXT = ['.mp3', '.wav', '.mp4', '.m4a', '.webm']
 // Vercel request bodies are capped at ~4.5 MB; base64 adds ~33% overhead.
 const MAX_AUDIO_BYTES = 3.2 * 1024 * 1024
 
