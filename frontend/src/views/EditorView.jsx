@@ -19,6 +19,8 @@ export default function EditorView({ user, jobId, onBack }) {
   const [currentTime, setCurrentTime] = useState(0)
   const [flash, setFlash] = useState(null) // 'saved' | 'copied'
   const [rename, setRename] = useState(null) // { from, to }
+  const [speakerMenu, setSpeakerMenu] = useState(null) // segment id with open menu
+  const [newSpeaker, setNewSpeaker] = useState(null) // text while adding a new speaker
   const audioRef = useRef(null)
 
   useEffect(() => {
@@ -63,6 +65,13 @@ export default function EditorView({ user, jobId, onBack }) {
 
   function updateText(id, text) {
     setSegments((segs) => segs.map((s) => (s.id === id ? { ...s, text } : s)))
+  }
+
+  function assignSpeaker(segId, name) {
+    setSegments((segs) => segs.map((s) => (s.id === segId ? { ...s, speaker: name } : s)))
+    logEvent(user.name, 'Edit', `Reassigned a block to "${name}" in ${job.fileName}`)
+    setSpeakerMenu(null)
+    setNewSpeaker(null)
   }
 
   function applyRename() {
@@ -186,12 +195,45 @@ export default function EditorView({ user, jobId, onBack }) {
               </button>
               <br />
               <button
-                className={`speaker-tag ${speakerColor(seg.speaker)}`}
-                onClick={() => setRename({ from: seg.speaker, to: seg.speaker })}
-                title="Tap to rename this speaker everywhere"
+                className={`speaker-tag editable ${speakerColor(seg.speaker)}`}
+                onClick={() => { setSpeakerMenu(speakerMenu === seg.id ? null : seg.id); setNewSpeaker(null) }}
+                title="Tap to change or rename this speaker"
               >
-                {seg.speaker}
+                {seg.speaker} <Icon name="edit" size={10} />
               </button>
+              {speakerMenu === seg.id && (
+                <div className="speaker-menu">
+                  <div className="sm-label">This block is spoken by</div>
+                  {speakerNames.map((n) => (
+                    <button
+                      key={n}
+                      className={`sm-item ${n === seg.speaker ? 'current' : ''}`}
+                      onClick={() => n !== seg.speaker && assignSpeaker(seg.id, n)}
+                    >
+                      {n} {n === seg.speaker ? '✓' : ''}
+                    </button>
+                  ))}
+                  {newSpeaker === null ? (
+                    <button className="sm-item" onClick={() => setNewSpeaker('')}>+ New speaker…</button>
+                  ) : (
+                    <div className="sm-new">
+                      <input
+                        autoFocus value={newSpeaker} placeholder="Name"
+                        onChange={(e) => setNewSpeaker(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && newSpeaker.trim()) assignSpeaker(seg.id, newSpeaker.trim()) }}
+                      />
+                      <button className="btn small" onClick={() => newSpeaker.trim() && assignSpeaker(seg.id, newSpeaker.trim())}>OK</button>
+                    </div>
+                  )}
+                  <div className="sm-divider" />
+                  <button
+                    className="sm-item"
+                    onClick={() => { setRename({ from: seg.speaker, to: seg.speaker }); setSpeakerMenu(null) }}
+                  >
+                    ✏ Rename "{seg.speaker}" everywhere
+                  </button>
+                </div>
+              )}
               <span className="lang-tag">{seg.lang}{seg.conf < 0.85 ? <span className="conf-low">LOW CONF</span> : null}</span>
             </div>
             <div className="seg-text">

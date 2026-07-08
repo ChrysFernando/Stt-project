@@ -135,16 +135,27 @@ function avgConfidence(segments) {
   return confs.reduce((a, b) => a + b, 0) / confs.length
 }
 
-// Natural language handling (spec 3.2/3.3): auto-detect first; if the model
-// seems unsure, retry assuming Sinhala and keep whichever result it was more
-// confident about. No user-facing language selection.
+function lowConfShare(segments) {
+  const confs = segments.map((s) => s.conf).filter((c) => typeof c === 'number')
+  if (!confs.length) return 0
+  return confs.filter((c) => c < 0.65).length / confs.length
+}
+
+const SINHALA_CODES = ['si', 'sin']
+
+// Natural language handling (spec 3.2/3.3): auto-detect first. English-opening
+// audio can lock the detector to 'en', forcing later Sinhala speech into
+// low-confidence English words — so when the detected language is not Sinhala
+// and the result shows unsureness (overall or a pocket of low-confidence
+// words), retry expecting Sinhala and keep the more confident result.
 async function transcribeSmart(buffer, fileName) {
   const first = await transcribeBuffer(buffer, fileName)
-  const firstConf = avgConfidence(first.segments)
-  if (firstConf >= 0.8 || first.languageCode === 'si') return first
+  if (SINHALA_CODES.includes(first.languageCode)) return first
+  const conf = avgConfidence(first.segments)
+  if (conf >= 0.9 && lowConfShare(first.segments) < 0.2) return first
   try {
     const retry = await transcribeBuffer(buffer, fileName, 'si')
-    if (avgConfidence(retry.segments) > firstConf) return retry
+    if (avgConfidence(retry.segments) > conf) return retry
   } catch {
     // keep the auto-detected result if the retry fails
   }
