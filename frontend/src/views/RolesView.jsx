@@ -27,6 +27,9 @@ export default function RolesView({ user }) {
         <button className="btn" onClick={create}><Icon name="plus" size={15} /> New role</button>
       </div>
 
+      <div className="preview-banner">
+        ⚠ Preview — this screen becomes fully functional (server-enforced) with the security build.
+      </div>
       <div className="role-grid">
         {roles.map((r) => (
           <div key={r.id} className="card role-card">

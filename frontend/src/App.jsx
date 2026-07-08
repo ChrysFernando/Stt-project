@@ -99,7 +99,7 @@ export default function App() {
 
         <div style={{ padding: '10px 12px' }}>
           {apiMode === 'live' && <span className="badge green">● Live transcription</span>}
-          {apiMode === 'demo' && <span className="badge grey">Demo mode — sample data</span>}
+          {apiMode === 'offline' && <span className="badge red">Server unreachable</span>}
         </div>
 
         <div className="sidebar-user">
@@ -115,7 +115,7 @@ export default function App() {
       </aside>
 
       <main className="content">
-        {view === 'dashboard' && <DashboardView user={user} goto={setView} jobCount={jobs.length} />}
+        {view === 'dashboard' && <DashboardView user={user} goto={setView} jobs={jobs} />}
         {view === 'upload' && (
           <UploadView user={user} onUploaded={setJobs} goToJobs={() => setView('transcripts')} />
         )}

@@ -29,6 +29,9 @@ export default function UsersView({ user }) {
         <p className="page-sub">Create, modify and deactivate accounts. Every change is recorded in the audit log.</p>
       </div>
 
+      <div className="preview-banner">
+        ⚠ Preview — this screen becomes fully functional (server-enforced) with the security build.
+      </div>
       <div className="card">
         <form className="inline-form" onSubmit={create}>
           <input placeholder="Full name" value={name} onChange={(e) => setName(e.target.value)} />

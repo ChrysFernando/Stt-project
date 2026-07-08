@@ -353,6 +353,18 @@ td.muted, .muted { color: var(--muted); }
 .mode-toggle button.on { background: var(--accent-strong); color: #fff; }
 .mode-note { font-size: 12px; color: var(--faint); margin: 0 0 14px 4px; }
 
+.rename-bar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 16px; margin-bottom: 14px; flex-wrap: wrap;
+  border-color: var(--accent-strong);
+}
+.rename-bar input {
+  flex: 1; min-width: 160px;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 12px; font-size: 13.5px;
+}
+.rename-bar input:focus { outline: none; border-color: var(--accent-strong); }
+
 .segments { display: flex; flex-direction: column; overflow: hidden; }
 .segment {
   display: flex; gap: 16px; padding: 13px 18px;
@@ -434,6 +446,14 @@ td.muted, .muted { color: var(--muted); }
 .switch input:checked + .track { background: var(--accent-strong); border-color: var(--accent-strong); }
 .switch input:checked + .track::after { transform: translateX(15px); background: #fff; }
 .switch input:focus-visible + .track { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.preview-banner {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--amber-soft); border: 1px solid rgba(239, 180, 84, 0.35);
+  color: var(--amber); border-radius: 10px;
+  padding: 10px 16px; font-size: 12.5px; font-weight: 600;
+  margin-bottom: 16px;
+}
 
 /* ---------- Audit ---------- */
 .audit-banner {

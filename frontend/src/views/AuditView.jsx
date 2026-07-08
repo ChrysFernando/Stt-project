@@ -21,6 +21,10 @@ export default function AuditView() {
         Append-only — entries cannot be edited or deleted, by anyone.
       </div>
 
+      <div className="preview-banner">
+        ⚠ Preview — records this session's real actions on this device; the security build makes it permanent and server-wide.
+      </div>
+
       <div className="list-tools">
         {ACTIONS.map((a) => (
           <button key={a} className={`chip-btn ${filter === a ? 'on' : ''}`} onClick={() => setFilter(a)}>
@@ -35,6 +39,11 @@ export default function AuditView() {
             <tr><th>Time</th><th>User</th><th>Action</th><th>Detail</th><th>IP address</th></tr>
           </thead>
           <tbody>
+            {events.length === 0 && (
+              <tr><td colSpan={5} className="muted" style={{ textAlign: 'center', padding: 28 }}>
+                No events yet — actions you take will appear here.
+              </td></tr>
+            )}
             {events.map((e) => (
               <tr key={e.id}>
                 <td className="muted mono">{e.time}</td>

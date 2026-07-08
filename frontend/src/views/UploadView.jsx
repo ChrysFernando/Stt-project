@@ -72,12 +72,13 @@ export default function UploadView({ user, onUploaded, goToJobs }) {
         </div>
         <div className="card">
           <div className="lbl" style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', marginBottom: 8 }}>
-            Languages — automatic
+            Languages &amp; limits
           </div>
           <p className="muted" style={{ fontSize: 12.5 }}>
-            Sinhala, English and Tamil are understood automatically — including speakers
-            switching languages mid-sentence. The transcript always keeps the exact
-            language spoken.
+            Sinhala, English and Tamil are understood automatically, including switching
+            mid-sentence. This deployment accepts files up to <b style={{ color: 'var(--text)' }}>~3 MB</b> (about
+            3–5 minutes of MP3); the transcription engine itself handles up to 10-hour
+            files — larger uploads unlock with the storage upgrade.
           </p>
         </div>
       </div>

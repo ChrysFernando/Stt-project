@@ -26,6 +26,9 @@ export default function SettingsView({ user }) {
         {savedFlash && <span className="saved-flash">✓ Saved</span>}
       </div>
 
+      <div className="preview-banner">
+        ⚠ Preview — this screen becomes fully functional (server-enforced) with the security build.
+      </div>
       <div className="settings-grid">
         <div className="card settings-card">
           <h3><Icon name="lock" size={15} /> Session security</h3>
@@ -72,7 +75,7 @@ export default function SettingsView({ user }) {
             <div style={{ display: 'flex', gap: 6 }}>
               <span className="badge green">Sinhala</span>
               <span className="badge green">English</span>
-              <span className="badge grey">Tamil — planned</span>
+              <span className="badge green">Tamil</span>
             </div>
           </div>
         </div>

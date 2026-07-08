@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import Icon from '../icons.jsx'
-import { getJobById, saveSegments, setClassification, normalizedOf, logEvent } from '../api.js'
+import { getJobById, saveSegments, setClassification, logEvent } from '../api.js'
 import { exportTxt, exportSrt, exportDocx, exportPdf } from '../exports.js'
 
 const TIER_COLOR = { Public: 'green', Restricted: 'amber', Confidential: 'red' }
@@ -16,9 +16,9 @@ export default function EditorView({ user, jobId, onBack }) {
   const [loading, setLoading] = useState(true)
   const [segments, setSegments] = useState([])
   const [tier, setTier] = useState('Restricted')
-  const [mode, setMode] = useState('raw') // 'raw' | 'normalized'
   const [currentTime, setCurrentTime] = useState(0)
-  const [savedFlash, setSavedFlash] = useState(false)
+  const [flash, setFlash] = useState(null) // 'saved' | 'copied'
+  const [rename, setRename] = useState(null) // { from, to }
   const audioRef = useRef(null)
 
   useEffect(() => {
@@ -33,10 +33,10 @@ export default function EditorView({ user, jobId, onBack }) {
   }, [jobId])
 
   useEffect(() => {
-    if (!savedFlash) return
-    const t = setTimeout(() => setSavedFlash(false), 2000)
+    if (!flash) return
+    const t = setTimeout(() => setFlash(null), 2000)
     return () => clearTimeout(t)
-  }, [savedFlash])
+  }, [flash])
 
   if (loading) {
     return <p className="muted" style={{ padding: 20 }}>Loading transcript…</p>
@@ -52,6 +52,7 @@ export default function EditorView({ user, jobId, onBack }) {
 
   const speakerNames = [...new Set(segments.map((s) => s.speaker))]
   const speakerColor = (name) => `sp-${speakerNames.indexOf(name) % 5}`
+  const textOf = (seg) => seg.text
 
   function seekTo(time) {
     const audio = audioRef.current
@@ -64,10 +65,13 @@ export default function EditorView({ user, jobId, onBack }) {
     setSegments((segs) => segs.map((s) => (s.id === id ? { ...s, text } : s)))
   }
 
-  function renameSpeaker(oldName) {
-    const newName = window.prompt(`Rename "${oldName}" everywhere in this transcript:`, oldName)
-    if (!newName || newName === oldName) return
-    setSegments((segs) => segs.map((s) => (s.speaker === oldName ? { ...s, speaker: newName } : s)))
+  function applyRename() {
+    const to = rename.to.trim()
+    if (to && to !== rename.from) {
+      setSegments((segs) => segs.map((s) => (s.speaker === rename.from ? { ...s, speaker: to } : s)))
+      logEvent(user.name, 'Edit', `Renamed speaker "${rename.from}" to "${to}" in ${job.fileName}`)
+    }
+    setRename(null)
   }
 
   function changeTier(t) {
@@ -77,11 +81,18 @@ export default function EditorView({ user, jobId, onBack }) {
 
   function handleSave() {
     saveSegments(jobId, segments, user.name)
-    setSavedFlash(true)
+    setFlash('saved')
   }
 
-  function textOf(seg) {
-    return mode === 'raw' ? seg.text : normalizedOf(seg)
+  async function copyAll() {
+    const text = segments.map((s) => `[${formatTime(s.start)}] ${s.speaker}: ${s.text}`).join('\n')
+    try {
+      await navigator.clipboard.writeText(text)
+      setFlash('copied')
+      logEvent(user.name, 'Export', `${job.fileName} → clipboard`)
+    } catch {
+      alert('Copy failed — your browser blocked clipboard access.')
+    }
   }
 
   function doExport(format) {
@@ -100,20 +111,24 @@ export default function EditorView({ user, jobId, onBack }) {
         <button className="btn secondary small" onClick={onBack}>← Back</button>
         <div className="titleblock">
           <h1>{job.fileName}</h1>
-          <div className="job-meta">{job.createdAt} · {job.language}</div>
+          <div className="job-meta">{job.createdAt}{job.language ? ` · ${job.language}` : ''}</div>
         </div>
         <div className="toolbar">
-          {savedFlash && <span className="saved-flash">✓ Saved</span>}
+          {flash === 'saved' && <span className="saved-flash">✓ Saved</span>}
+          {flash === 'copied' && <span className="saved-flash">✓ Copied</span>}
           <select
             className="class-select" value={tier}
             onChange={(e) => changeTier(e.target.value)}
             title="Data classification"
-            style={{ color: `var(--${TIER_COLOR[tier] === 'blue' ? 'accent' : TIER_COLOR[tier]})` }}
+            style={{ color: `var(--${TIER_COLOR[tier]})` }}
           >
             <option>Public</option>
             <option>Restricted</option>
             <option>Confidential</option>
           </select>
+          <button className="btn secondary small" onClick={copyAll} title="Copy the whole transcript — paste into Word, Notepad or any app">
+            Copy all
+          </button>
           <button className="btn secondary small" onClick={() => doExport('TXT')}><Icon name="download" size={14} /> TXT</button>
           <button className="btn secondary small" onClick={() => doExport('DOCX')}><Icon name="download" size={14} /> DOCX</button>
           <button className="btn secondary small" onClick={() => doExport('PDF')}><Icon name="download" size={14} /> PDF</button>
@@ -143,24 +158,24 @@ export default function EditorView({ user, jobId, onBack }) {
           />
         ) : (
           <span className="player-note">
-            Sample transcript — upload a real file to get audio playback here.
+            Audio playback is available on the device where this was uploaded.
           </span>
         )}
       </div>
 
-      <div className="mode-toggle" role="tablist">
-        <button className={mode === 'raw' ? 'on' : ''} onClick={() => setMode('raw')}>
-          Raw · as spoken
-        </button>
-        <button className={mode === 'normalized' ? 'on' : ''} onClick={() => setMode('normalized')}>
-          Normalized Sinhala
-        </button>
-      </div>
-      <p className="mode-note">
-        {mode === 'raw'
-          ? 'Exactly what was said, in the languages spoken. Editable.'
-          : 'Auto-generated fully-Sinhala rendering of the same speech. Read-only.'}
-      </p>
+      {rename && (
+        <div className="card rename-bar">
+          <span>Rename <b className={`speaker-tag ${speakerColor(rename.from)}`}>{rename.from}</b> everywhere:</span>
+          <input
+            autoFocus value={rename.to}
+            onChange={(e) => setRename({ ...rename, to: e.target.value })}
+            onKeyDown={(e) => { if (e.key === 'Enter') applyRename(); if (e.key === 'Escape') setRename(null) }}
+            placeholder="e.g. Hon. Chairman"
+          />
+          <button className="btn small" onClick={applyRename}>Apply</button>
+          <button className="btn secondary small" onClick={() => setRename(null)}>Cancel</button>
+        </div>
+      )}
 
       <div className="card segments">
         {segments.map((seg) => (
@@ -172,23 +187,19 @@ export default function EditorView({ user, jobId, onBack }) {
               <br />
               <button
                 className={`speaker-tag ${speakerColor(seg.speaker)}`}
-                onClick={() => renameSpeaker(seg.speaker)}
-                title="Click to rename this speaker"
+                onClick={() => setRename({ from: seg.speaker, to: seg.speaker })}
+                title="Tap to rename this speaker everywhere"
               >
                 {seg.speaker}
               </button>
               <span className="lang-tag">{seg.lang}{seg.conf < 0.85 ? <span className="conf-low">LOW CONF</span> : null}</span>
             </div>
             <div className="seg-text">
-              {mode === 'raw' ? (
-                <textarea
-                  rows={Math.max(1, Math.ceil(seg.text.length / 70))}
-                  value={seg.text}
-                  onChange={(e) => updateText(seg.id, e.target.value)}
-                />
-              ) : (
-                <div className="ro">{normalizedOf(seg)}</div>
-              )}
+              <textarea
+                rows={Math.max(1, Math.ceil(seg.text.length / 70))}
+                value={seg.text}
+                onChange={(e) => updateText(seg.id, e.target.value)}
+              />
             </div>
           </div>
         ))}
