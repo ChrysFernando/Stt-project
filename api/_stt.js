@@ -119,4 +119,26 @@ async function transcribeBuffer(buffer, fileName, languageCode) {
   }
 }
 
-module.exports = { groupWords, transcribeBuffer, getApiKey }
+function avgConfidence(segments) {
+  const confs = segments.map((s) => s.conf).filter((c) => typeof c === 'number')
+  if (!confs.length) return 1
+  return confs.reduce((a, b) => a + b, 0) / confs.length
+}
+
+// Natural language handling (spec 3.2/3.3): auto-detect first; if the model
+// seems unsure, retry assuming Sinhala and keep whichever result it was more
+// confident about. No user-facing language selection.
+async function transcribeSmart(buffer, fileName) {
+  const first = await transcribeBuffer(buffer, fileName)
+  const firstConf = avgConfidence(first.segments)
+  if (firstConf >= 0.8 || first.languageCode === 'si') return first
+  try {
+    const retry = await transcribeBuffer(buffer, fileName, 'si')
+    if (avgConfidence(retry.segments) > firstConf) return retry
+  } catch {
+    // keep the auto-detected result if the retry fails
+  }
+  return first
+}
+
+module.exports = { groupWords, transcribeBuffer, transcribeSmart, getApiKey }

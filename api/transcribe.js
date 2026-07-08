@@ -1,4 +1,4 @@
-const { transcribeBuffer } = require('./_stt.js')
+const { transcribeSmart } = require('./_stt.js')
 
 const ALLOWED_EXT = ['.mp3', '.wav', '.mp4', '.m4a']
 // Vercel request bodies are capped at ~4.5 MB; base64 adds ~33% overhead.
@@ -7,11 +7,8 @@ const MAX_AUDIO_BYTES = 3.2 * 1024 * 1024
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const { fileName, data, languageCode } = req.body || {}
+  const { fileName, data } = req.body || {}
   if (!fileName || !data) return res.status(400).json({ error: 'Expected JSON body with fileName and base64 data.' })
-
-  const ALLOWED_LANGS = ['si', 'en', 'ta']
-  const langHint = ALLOWED_LANGS.includes(languageCode) ? languageCode : undefined
 
   const ext = fileName.slice(fileName.lastIndexOf('.')).toLowerCase()
   if (!ALLOWED_EXT.includes(ext)) {
@@ -29,7 +26,7 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const result = await transcribeBuffer(buffer, fileName, langHint)
+    const result = await transcribeSmart(buffer, fileName)
     return res.json(result)
   } catch (e) {
     console.error('Transcription failed:', e.message)

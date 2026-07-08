@@ -4,19 +4,12 @@ import { uploadAudio } from '../api.js'
 
 const ACCEPTED = ['.mp3', '.wav', '.mp4', '.m4a']
 const TIERS = ['Public', 'Restricted', 'Confidential']
-const LANGS = [
-  { code: '', label: 'Auto (mixed)' },
-  { code: 'si', label: 'Sinhala' },
-  { code: 'en', label: 'English' },
-  { code: 'ta', label: 'Tamil' },
-]
 
 export default function UploadView({ user, onUploaded, goToJobs }) {
   const inputRef = useRef(null)
   const [dragging, setDragging] = useState(false)
   const [message, setMessage] = useState(null)
   const [tier, setTier] = useState('Restricted')
-  const [lang, setLang] = useState('si')
 
   async function handleFiles(files) {
     const file = files && files[0]
@@ -28,7 +21,7 @@ export default function UploadView({ user, onUploaded, goToJobs }) {
     }
     setMessage({ type: 'ok', text: `Uploading "${file.name}"…` })
     try {
-      await uploadAudio(file, tier, lang, user.name, onUploaded)
+      await uploadAudio(file, tier, user.name, onUploaded)
       setMessage({ type: 'ok', text: `"${file.name}" uploaded as ${tier}. Transcription started…` })
       setTimeout(goToJobs, 900)
     } catch (e) {
@@ -79,19 +72,12 @@ export default function UploadView({ user, onUploaded, goToJobs }) {
         </div>
         <div className="card">
           <div className="lbl" style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', marginBottom: 8 }}>
-            Spoken language
+            Languages — automatic
           </div>
-          <div className="radio-row">
-            {LANGS.map((l) => (
-              <button key={l.code} className={`chip-btn ${lang === l.code ? 'on' : ''}`} onClick={() => setLang(l.code)}>
-                {l.label}
-              </button>
-            ))}
-          </div>
-          <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>
-            The transcript always keeps the exact language spoken — pick a language only
-            to help when detection guesses wrong. "Auto (mixed)" follows speakers switching
-            between languages.
+          <p className="muted" style={{ fontSize: 12.5 }}>
+            Sinhala, English and Tamil are understood automatically — including speakers
+            switching languages mid-sentence. The transcript always keeps the exact
+            language spoken.
           </p>
         </div>
       </div>
