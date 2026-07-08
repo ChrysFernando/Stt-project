@@ -18,15 +18,30 @@ const PHRASE_MIN_SECONDS = 4 // only use breathing pauses once the segment is th
 const MAX_SEGMENT_SECONDS = 18 // hard cap for run-on speech with no punctuation
 const SENTENCE_END = /[.!?…។॥෴]["'»”’)]*$/
 
-const SINHALA = /[඀-෿]/
-const LATIN = /[A-Za-z]/
+const SCRIPTS = [
+  ['SI', /[඀-෿]/],          // Sinhala U+0D80–0DFF
+  ['TA', /[஀-௿]/],          // Tamil U+0B80–0BFF
+  ['EN', /[A-Za-z]/],
+]
 
+// Tag by the scripts actually present in the text — never by detector guess.
 function langOf(text) {
-  const si = SINHALA.test(text)
-  const en = LATIN.test(text)
-  if (si && en) return 'MIX'
-  if (si) return 'SI'
-  return 'EN'
+  const present = SCRIPTS.filter(([, re]) => re.test(text)).map(([tag]) => tag)
+  if (present.length > 1) return 'MIX'
+  return present[0] || 'EN'
+}
+
+const SCRIPT_NAMES = { SI: 'Sinhala', TA: 'Tamil', EN: 'English' }
+
+// Human-readable label from the content itself, e.g. "Sinhala + English".
+function languageLabelOf(segments) {
+  const found = new Set()
+  for (const s of segments) {
+    for (const [tag, re] of SCRIPTS) if (re.test(s.text)) found.add(tag)
+  }
+  const order = ['SI', 'TA', 'EN']
+  const names = order.filter((t) => found.has(t)).map((t) => SCRIPT_NAMES[t])
+  return names.join(' + ') || null
 }
 
 function groupWords(words) {
@@ -124,6 +139,7 @@ async function transcribeBuffer(buffer, fileName, languageCode) {
   return {
     text: data.text || '',
     languageCode: data.language_code || null,
+    languageLabel: languageLabelOf(segments),
     segments,
     durationSec: last ? Math.ceil(last.end) : null,
   }

@@ -120,7 +120,7 @@ export async function uploadAudio(file, classification, user, onUpdate) {
         job.status = 'completed'
         job.segments = body.segments
         job.duration = body.durationSec
-        job.language = LANG_NAMES[body.languageCode] || body.languageCode || null
+        job.language = body.languageLabel || LANG_NAMES[body.languageCode] || body.languageCode || null
       } catch (e) {
         job.status = 'failed'
         job.error = e.message
