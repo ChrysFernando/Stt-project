@@ -5,7 +5,7 @@ import { uploadAudio } from '../api.js'
 const ACCEPTED = ['.mp3', '.wav', '.mp4', '.m4a']
 const TIERS = ['Public', 'Restricted', 'Confidential']
 
-export default function UploadView({ user, onUploaded, goToJobs }) {
+export default function UploadView({ onUploaded, goToJobs }) {
   const inputRef = useRef(null)
   const [dragging, setDragging] = useState(false)
   const [message, setMessage] = useState(null)
@@ -21,7 +21,7 @@ export default function UploadView({ user, onUploaded, goToJobs }) {
     }
     setMessage({ type: 'ok', text: `Uploading "${file.name}"…` })
     try {
-      await uploadAudio(file, tier, user.name, onUploaded)
+      await uploadAudio(file, tier, onUploaded)
       setMessage({ type: 'ok', text: `"${file.name}" uploaded as ${tier}. Transcription started…` })
       setTimeout(goToJobs, 900)
     } catch (e) {

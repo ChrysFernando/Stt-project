@@ -11,7 +11,7 @@ function fmt(sec) {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
-export default function RecordView({ user, onUploaded, goToJobs }) {
+export default function RecordView({ onUploaded, goToJobs }) {
   const [phase, setPhase] = useState('idle') // idle | recording | preview
   const [seconds, setSeconds] = useState(0)
   const [tier, setTier] = useState('Restricted')
@@ -74,7 +74,7 @@ export default function RecordView({ user, onUploaded, goToJobs }) {
     const stamp = new Date().toISOString().slice(0, 16).replace(/[T:]/g, '-')
     const file = new File([blobInfo.blob], `dictation-${stamp}.${blobInfo.ext}`, { type: blobInfo.blob.type })
     try {
-      await uploadAudio(file, tier, user.name, onUploaded)
+      await uploadAudio(file, tier, onUploaded)
       goToJobs()
     } catch (e) {
       setError(e.message)

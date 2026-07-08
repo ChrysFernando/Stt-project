@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import Icon from '../icons.jsx'
-import { getJobById, saveSegments, setClassification, logEvent } from '../api.js'
+import { getJobById, saveSegments, setClassification, reportExport } from '../api.js'
 import { exportTxt, exportSrt, exportDocx, exportPdf } from '../exports.js'
 
 const TIER_COLOR = { Public: 'green', Restricted: 'amber', Confidential: 'red' }
@@ -69,7 +69,6 @@ export default function EditorView({ user, jobId, onBack }) {
 
   function assignSpeaker(segId, name) {
     setSegments((segs) => segs.map((s) => (s.id === segId ? { ...s, speaker: name } : s)))
-    logEvent(user.name, 'Edit', `Reassigned a block to "${name}" in ${job.fileName}`)
     setSpeakerMenu(null)
     setNewSpeaker(null)
   }
@@ -78,19 +77,19 @@ export default function EditorView({ user, jobId, onBack }) {
     const to = rename.to.trim()
     if (to && to !== rename.from) {
       setSegments((segs) => segs.map((s) => (s.speaker === rename.from ? { ...s, speaker: to } : s)))
-      logEvent(user.name, 'Edit', `Renamed speaker "${rename.from}" to "${to}" in ${job.fileName}`)
     }
     setRename(null)
   }
 
   function changeTier(t) {
     setTier(t)
-    setClassification(jobId, t, user.name)
+    setClassification(jobId, t).catch((e) => alert(e.message))
   }
 
   function handleSave() {
-    saveSegments(jobId, segments, user.name)
-    setFlash('saved')
+    saveSegments(jobId, segments)
+      .then(() => setFlash('saved'))
+      .catch((e) => alert(e.message))
   }
 
   async function copyAll() {
@@ -98,7 +97,7 @@ export default function EditorView({ user, jobId, onBack }) {
     try {
       await navigator.clipboard.writeText(text)
       setFlash('copied')
-      logEvent(user.name, 'Export', `${job.fileName} → clipboard`)
+      reportExport(`${job.fileName} → clipboard`)
     } catch {
       alert('Copy failed — your browser blocked clipboard access.')
     }
@@ -109,7 +108,7 @@ export default function EditorView({ user, jobId, onBack }) {
     if (format === 'SRT') exportSrt(job, segments, textOf)
     if (format === 'DOCX') exportDocx(job, segments, textOf, tier)
     if (format === 'PDF') exportPdf(job, segments, textOf, tier)
-    logEvent(user.name, 'Export', `${job.fileName} → ${format}`)
+    reportExport(`${job.fileName} → ${format}`)
   }
 
   const activeId = segments.find((s) => currentTime >= s.start && currentTime < s.end)?.id

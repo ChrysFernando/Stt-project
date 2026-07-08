@@ -1,14 +1,24 @@
 import { useState } from 'react'
 import Icon from '../icons.jsx'
+import { login } from '../api.js'
 
 export default function LoginView({ onLogin }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [error, setError] = useState(null)
+  const [busy, setBusy] = useState(false)
 
-  function submit(e) {
+  async function submit(e) {
     e.preventDefault()
-    if (!email || !password) return
-    onLogin({ name: email.split('@')[0], role: 'Administrator' })
+    if (!email || !password || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      onLogin(await login(email, password))
+    } catch (err) {
+      setError(err.message)
+    }
+    setBusy(false)
   }
 
   return (
@@ -26,33 +36,24 @@ export default function LoginView({ onLogin }) {
 
         <div className="field">
           <label htmlFor="email">Email</label>
-          <input id="email" type="email" placeholder="name@commission.gov.lk"
+          <input id="email" type="email" placeholder="name@commission.gov.lk" autoComplete="username"
             value={email} onChange={(e) => setEmail(e.target.value)} />
         </div>
         <div className="field">
           <label htmlFor="pw">Password</label>
-          <input id="pw" type="password" placeholder="••••••••••••"
+          <input id="pw" type="password" placeholder="••••••••••••" autoComplete="current-password"
             value={password} onChange={(e) => setPassword(e.target.value)} />
         </div>
-        <button className="btn" style={{ width: '100%', justifyContent: 'center' }} type="submit">
-          <Icon name="lock" size={15} /> Sign in securely
+
+        {error && <p className="upload-note err" style={{ margin: '0 0 12px', textAlign: 'left' }}>{error}</p>}
+
+        <button className="btn" style={{ width: '100%', justifyContent: 'center' }} type="submit" disabled={busy}>
+          <Icon name="lock" size={15} /> {busy ? 'Signing in…' : 'Sign in securely'}
         </button>
 
-        <div className="login-divider">or use a demo account</div>
-        <div className="demo-row">
-          <button type="button" className="btn secondary"
-            onClick={() => onLogin({ name: 'A. Perera', role: 'Administrator' })}>
-            Administrator
-          </button>
-          <button type="button" className="btn secondary"
-            onClick={() => onLogin({ name: 'S. Fernando', role: 'Transcription Clerk' })}>
-            Clerk
-          </button>
-        </div>
-
         <div className="login-foot">
-          Sessions expire after 30 minutes of inactivity · Concurrent logins restricted<br />
-          Protected with TLS 1.2+ in transit and AES-256 at rest
+          Sessions expire automatically after inactivity · Concurrent logins restricted<br />
+          Every sign-in attempt is recorded in the audit log
         </div>
       </form>
     </div>

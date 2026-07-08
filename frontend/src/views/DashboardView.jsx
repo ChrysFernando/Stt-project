@@ -1,5 +1,6 @@
+import { useEffect, useState } from 'react'
 import Icon from '../icons.jsx'
-import { listAudit } from '../api.js'
+import { myActivity } from '../api.js'
 
 const ACTION_COLOR = { Login: 'blue', Upload: 'blue', Edit: 'amber', Export: 'green', View: 'grey', Admin: 'red' }
 
@@ -11,11 +12,18 @@ function fmtHours(totalSec) {
 }
 
 export default function DashboardView({ user, goto, jobs }) {
+  const [recent, setRecent] = useState([])
+
+  useEffect(() => {
+    myActivity().then(setRecent).catch(() => setRecent([]))
+  }, [jobs.length])
+
   const completed = jobs.filter((j) => j.status === 'completed')
   const totalSec = completed.reduce((a, j) => a + (j.duration || 0), 0)
-  const confs = completed.flatMap((j) => j.segments.map((s) => s.conf)).filter((c) => typeof c === 'number')
+  const confs = completed.flatMap((j) => (j.segments || []).map((s) => s.conf)).filter((c) => typeof c === 'number')
   const avgConf = confs.length ? `${Math.round((confs.reduce((a, b) => a + b, 0) / confs.length) * 100)}%` : '—'
-  const recent = listAudit().slice(0, 7)
+
+  const can = (p) => user.perms.includes(p)
 
   return (
     <div>
@@ -28,39 +36,39 @@ export default function DashboardView({ user, goto, jobs }) {
         <div className="card stat">
           <div className="lbl">TRANSCRIPTS</div>
           <div className="k">{jobs.length}</div>
-          <div className="note">on this device</div>
+          <div className="note">stored on the server</div>
         </div>
         <div className="card stat">
           <div className="lbl">AUDIO PROCESSED</div>
           <div className="k">{fmtHours(totalSec)}</div>
-          <div className="note">Sinhala · English · mixed</div>
+          <div className="note">Sinhala · English · Tamil · mixed</div>
         </div>
         <div className="card stat">
           <div className="lbl">AVG MODEL CONFIDENCE</div>
           <div className="k">{avgConf}</div>
-          <div className="note">across your transcripts</div>
+          <div className="note">across all transcripts</div>
         </div>
         <div className="card stat">
-          <div className="lbl">ACTIVE USERS</div>
-          <div className="k">—</div>
-          <div className="note">arrives with server accounts</div>
+          <div className="lbl">SIGNED IN AS</div>
+          <div className="k" style={{ fontSize: 20 }}>{user.role}</div>
+          <div className="note">{user.perms.length} permissions</div>
         </div>
       </div>
 
       <div className="dash-cols">
         <div className="card">
-          <div className="panel-title"><Icon name="list" size={15} /> Recent activity (this session)</div>
+          <div className="panel-title"><Icon name="list" size={15} /> Your recent activity</div>
           {recent.length === 0 ? (
             <p className="muted" style={{ padding: '14px 18px', fontSize: 13 }}>
-              No activity yet — upload or record something and your actions will appear here.
+              No activity recorded yet for this account.
             </p>
           ) : (
             <ul className="activity">
-              {recent.map((e) => (
+              {recent.slice(0, 8).map((e) => (
                 <li key={e.id}>
                   <time>{e.time}</time>
                   <span className={`badge ${ACTION_COLOR[e.action] || 'grey'}`}>{e.action}</span>
-                  <span className="muted">{e.user} — {e.detail}</span>
+                  <span className="muted">{e.detail}</span>
                 </li>
               ))}
             </ul>
@@ -71,18 +79,24 @@ export default function DashboardView({ user, goto, jobs }) {
           <div className="panel-title" style={{ padding: '0 0 12px', border: 'none' }}>
             <Icon name="upload" size={15} /> Quick actions
           </div>
-          <button className="btn" onClick={() => goto('upload')}>
-            <Icon name="upload" size={15} /> Upload new audio
-          </button>
-          <button className="btn secondary" onClick={() => goto('record')}>
-            <Icon name="mic" size={15} /> Record & dictate
-          </button>
-          <button className="btn secondary" onClick={() => goto('transcripts')}>
-            <Icon name="file" size={15} /> Review transcripts
-          </button>
+          {can('Upload audio') && (
+            <>
+              <button className="btn" onClick={() => goto('upload')}>
+                <Icon name="upload" size={15} /> Upload new audio
+              </button>
+              <button className="btn secondary" onClick={() => goto('record')}>
+                <Icon name="mic" size={15} /> Record & dictate
+              </button>
+            </>
+          )}
+          {can('View transcripts') && (
+            <button className="btn secondary" onClick={() => goto('transcripts')}>
+              <Icon name="file" size={15} /> Review transcripts
+            </button>
+          )}
           <p>
-            Speech is processed by the transcription engine and returned here;
-            transcripts stay on your device until server accounts arrive.
+            Transcripts and audio are stored on the server — sign in from any device
+            and your work is here.
           </p>
         </div>
       </div>

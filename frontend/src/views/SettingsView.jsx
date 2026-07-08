@@ -1,34 +1,45 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Icon from '../icons.jsx'
 import { getSettings, saveSettings } from '../api.js'
 
 const STORAGE_MODES = ['On-premises', 'Cloud', 'Hybrid']
 
-export default function SettingsView({ user }) {
-  const [s, setS] = useState(getSettings())
+export default function SettingsView() {
+  const [s, setS] = useState(null)
   const [savedFlash, setSavedFlash] = useState(false)
+  const [error, setError] = useState(null)
 
-  function update(patch) {
+  useEffect(() => {
+    getSettings().then(setS).catch((e) => setError(e.message))
+  }, [])
+
+  async function update(patch) {
     const next = { ...s, ...patch }
     setS(next)
-    saveSettings(patch, user.name)
-    setSavedFlash(true)
-    setTimeout(() => setSavedFlash(false), 1500)
+    setError(null)
+    try {
+      await saveSettings(next)
+      setSavedFlash(true)
+      setTimeout(() => setSavedFlash(false), 1500)
+    } catch (e) {
+      setError(e.message)
+    }
   }
+
+  if (!s) return <p className="muted" style={{ padding: 20 }}>{error || 'Loading settings…'}</p>
 
   return (
     <div>
       <div className="head-row">
         <div className="page-head">
           <h1 className="page-title">Settings</h1>
-          <p className="page-sub">Session security, deployment and data-protection posture.</p>
+          <p className="page-sub">Session security, deployment and data-protection posture — enforced server-side.</p>
         </div>
         {savedFlash && <span className="saved-flash">✓ Saved</span>}
       </div>
 
-      <div className="preview-banner">
-        ⚠ Preview — this screen becomes fully functional (server-enforced) with the security build.
-      </div>
+      {error && <div className="preview-banner" style={{ color: 'var(--red)', borderColor: 'rgba(240,101,90,0.4)', background: 'var(--red-soft)' }}>{error}</div>}
+
       <div className="settings-grid">
         <div className="card settings-card">
           <h3><Icon name="lock" size={15} /> Session security</h3>
@@ -51,7 +62,7 @@ export default function SettingsView({ user }) {
               onChange={(e) => update({ sessionTimeoutMins: Number(e.target.value) })} />
           </div>
           <div className="setting-row">
-            <div>Max concurrent sessions per user</div>
+            <div>Max concurrent sessions per user<span className="desc">Signing in beyond the limit revokes the oldest session</span></div>
             <input type="number" min="1" max="5" value={s.maxConcurrentSessions}
               onChange={(e) => update({ maxConcurrentSessions: Number(e.target.value) })} />
           </div>
@@ -84,13 +95,13 @@ export default function SettingsView({ user }) {
           <h3><Icon name="shield" size={15} /> Data protection</h3>
           <div className="shield-list">
             <div className="shield-item"><Icon name="check" size={15} />
-              <div>AES-256 encryption at rest<span>All audio and transcript stores, with managed key rotation</span></div>
+              <div>Passwords stored as one-way hashes<span>scrypt with per-user salt — plain passwords are never kept</span></div>
             </div>
             <div className="shield-item"><Icon name="check" size={15} />
-              <div>TLS 1.2+ in transit<span>Enforced for every network connection</span></div>
+              <div>Encryption at rest &amp; TLS 1.2+ in transit<span>Database and file storage encrypted by the platform; HTTPS enforced</span></div>
             </div>
             <div className="shield-item"><Icon name="check" size={15} />
-              <div>Network isolation<span>Data stores and transcription engine on private subnets only</span></div>
+              <div>Server-enforced RBAC<span>Every API request re-checks the session and the role's permissions</span></div>
             </div>
           </div>
         </div>
@@ -99,13 +110,13 @@ export default function SettingsView({ user }) {
           <h3><Icon name="globe" size={15} /> Data sovereignty</h3>
           <div className="shield-list">
             <div className="shield-item"><Icon name="check" size={15} />
-              <div>Jurisdiction: Sri Lanka<span>All data, telemetry and audio logs remain within approved borders</span></div>
-            </div>
-            <div className="shield-item"><Icon name="check" size={15} />
               <div>Client data ownership<span>The Commission holds exclusive ownership of all audio and transcripts</span></div>
             </div>
             <div className="shield-item"><Icon name="check" size={15} />
               <div>No AI training on client data<span>Data is never used for model refinement or analytics by any party</span></div>
+            </div>
+            <div className="shield-item"><Icon name="check" size={15} />
+              <div>Jurisdiction control<span>Final deployment region is fixed by the on-premises / approved-cloud installation</span></div>
             </div>
           </div>
         </div>
