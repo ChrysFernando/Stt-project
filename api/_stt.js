@@ -11,7 +11,9 @@ const MIME = {
 }
 
 const MAX_GAP_SECONDS = 1.0
-const MAX_SEGMENT_SECONDS = 15
+const MIN_SENTENCE_SECONDS = 3 // merge very short sentences with the next one
+const MAX_SEGMENT_SECONDS = 18 // hard cap for run-on speech with no punctuation
+const SENTENCE_END = /[.!?…។॥෴]["'»”’)]*$/
 
 const SINHALA = /[඀-෿]/
 const LATIN = /[A-Za-z]/
@@ -65,6 +67,10 @@ function groupWords(words) {
       cur.text += w.text
       cur.end = w.end ?? cur.end
       if (typeof w.logprob === 'number') cur.logprobs.push(w.logprob)
+
+      // One complete thought per timestamp: split at sentence-ending
+      // punctuation once the segment is long enough to stand on its own.
+      if (SENTENCE_END.test(w.text) && cur.end - cur.start >= MIN_SENTENCE_SECONDS) flush()
     } else if (cur) {
       cur.text += w.text ?? ' '
     }
