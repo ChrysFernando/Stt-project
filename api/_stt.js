@@ -84,16 +84,19 @@ function getApiKey() {
   }
 }
 
-async function transcribeBuffer(buffer, fileName) {
+async function transcribeBuffer(buffer, fileName, languageCode) {
   const apiKey = getApiKey()
   if (!apiKey) throw new Error('Speech-to-text API key is not configured on the server.')
-  const model = process.env.ELEVENLABS_STT_MODEL || 'scribe_v1'
+  // scribe_v2 auto-detects language switches within one file and keeps each
+  // language in its own script (spec 3.2 / 3.3). scribe_v1 is EOL 2026-07-09.
+  const model = process.env.ELEVENLABS_STT_MODEL || 'scribe_v2'
   const ext = fileName.slice(fileName.lastIndexOf('.')).toLowerCase()
 
   const form = new FormData()
   form.append('model_id', model)
   form.append('diarize', 'true')
   form.append('tag_audio_events', 'false')
+  if (languageCode) form.append('language_code', languageCode)
   form.append('file', new Blob([buffer], { type: MIME[ext] || 'application/octet-stream' }), fileName)
 
   const res = await fetch(API_URL, {

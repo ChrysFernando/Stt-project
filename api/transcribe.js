@@ -7,8 +7,11 @@ const MAX_AUDIO_BYTES = 3.2 * 1024 * 1024
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const { fileName, data } = req.body || {}
+  const { fileName, data, languageCode } = req.body || {}
   if (!fileName || !data) return res.status(400).json({ error: 'Expected JSON body with fileName and base64 data.' })
+
+  const ALLOWED_LANGS = ['si', 'en', 'ta']
+  const langHint = ALLOWED_LANGS.includes(languageCode) ? languageCode : undefined
 
   const ext = fileName.slice(fileName.lastIndexOf('.')).toLowerCase()
   if (!ALLOWED_EXT.includes(ext)) {
@@ -26,7 +29,7 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const result = await transcribeBuffer(buffer, fileName)
+    const result = await transcribeBuffer(buffer, fileName, langHint)
     return res.json(result)
   } catch (e) {
     console.error('Transcription failed:', e.message)

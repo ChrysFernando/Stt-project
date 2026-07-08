@@ -108,7 +108,7 @@ export async function getJobById(id) {
   return fromBackend(await res.json())
 }
 
-export async function uploadAudio(file, classification, user, onUpdate) {
+export async function uploadAudio(file, classification, languageCode, user, onUpdate) {
   logEvent(user, 'Upload', `${file.name} (${classification})`)
 
   if (cloud) {
@@ -141,7 +141,7 @@ export async function uploadAudio(file, classification, user, onUpdate) {
         const res = await fetch(`${API}/transcribe`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fileName: file.name, data }),
+          body: JSON.stringify({ fileName: file.name, data, languageCode: languageCode || undefined }),
         })
         const body = await res.json().catch(() => ({}))
         if (!res.ok) throw new Error(body.error || `Transcription failed (${res.status})`)
@@ -164,6 +164,7 @@ export async function uploadAudio(file, classification, user, onUpdate) {
     const form = new FormData()
     form.append('file', file)
     form.append('classification', classification)
+    if (languageCode) form.append('languageCode', languageCode)
     const res = await fetch(`${API}/transcriptions`, { method: 'POST', body: form })
     if (!res.ok) {
       const body = await res.json().catch(() => ({}))
