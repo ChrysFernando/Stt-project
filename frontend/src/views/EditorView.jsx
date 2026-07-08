@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Icon from '../icons.jsx'
 import { getJobById, saveSegments, setClassification, normalizedOf, logEvent } from '../api.js'
+import { exportTxt, exportSrt, exportDocx, exportPdf } from '../exports.js'
 
 const TIER_COLOR = { Public: 'green', Restricted: 'amber', Confidential: 'red' }
 
@@ -83,33 +84,12 @@ export default function EditorView({ user, jobId, onBack }) {
     return mode === 'raw' ? seg.text : normalizedOf(seg)
   }
 
-  function download(content, mime, filename) {
-    const blob = new Blob([content], { type: mime })
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob)
-    a.download = filename
-    a.click()
-    URL.revokeObjectURL(a.href)
-  }
-
-  const baseName = job.fileName.replace(/\.[^.]+$/, '')
-
-  function exportTxt() {
-    const lines = segments.map((s) => `[${formatTime(s.start)}] ${s.speaker}: ${textOf(s)}`)
-    download('﻿' + lines.join('\n'), 'text/plain;charset=utf-8', `${baseName}_transcript.txt`)
-    logEvent(user.name, 'Export', `${job.fileName} → TXT`)
-  }
-
-  function exportDocx() {
-    // Word opens HTML saved with a .doc extension; keeps export fully client-side for the demo.
-    const rows = segments.map((s) =>
-      `<p><b>${s.speaker}</b> <span style="color:#888">[${formatTime(s.start)}]</span><br/>${textOf(s)}</p>`
-    ).join('\n')
-    const html = `<html><head><meta charset="utf-8"><title>${job.fileName}</title></head>
-      <body style="font-family:'Noto Sans Sinhala','Iskoola Pota',sans-serif;line-height:1.6">
-      <h2>${job.fileName}</h2><p style="color:#888">${job.createdAt} · ${job.language} · ${tier}</p>${rows}</body></html>`
-    download('﻿' + html, 'application/msword', `${baseName}_transcript.doc`)
-    logEvent(user.name, 'Export', `${job.fileName} → DOCX`)
+  function doExport(format) {
+    if (format === 'TXT') exportTxt(job, segments, textOf)
+    if (format === 'SRT') exportSrt(job, segments, textOf)
+    if (format === 'DOCX') exportDocx(job, segments, textOf, tier)
+    if (format === 'PDF') exportPdf(job, segments, textOf, tier)
+    logEvent(user.name, 'Export', `${job.fileName} → ${format}`)
   }
 
   const activeId = segments.find((s) => currentTime >= s.start && currentTime < s.end)?.id
@@ -134,9 +114,10 @@ export default function EditorView({ user, jobId, onBack }) {
             <option>Restricted</option>
             <option>Confidential</option>
           </select>
-          <button className="btn secondary small" onClick={exportTxt}><Icon name="download" size={14} /> TXT</button>
-          <button className="btn secondary small" onClick={exportDocx}><Icon name="download" size={14} /> DOCX</button>
-          <button className="btn secondary small" disabled title="Available when the backend is connected">PDF</button>
+          <button className="btn secondary small" onClick={() => doExport('TXT')}><Icon name="download" size={14} /> TXT</button>
+          <button className="btn secondary small" onClick={() => doExport('DOCX')}><Icon name="download" size={14} /> DOCX</button>
+          <button className="btn secondary small" onClick={() => doExport('PDF')}><Icon name="download" size={14} /> PDF</button>
+          <button className="btn secondary small" onClick={() => doExport('SRT')}><Icon name="download" size={14} /> SRT</button>
           <button className="btn small" onClick={handleSave}>Save changes</button>
         </div>
       </div>
@@ -146,6 +127,19 @@ export default function EditorView({ user, jobId, onBack }) {
           <audio
             ref={audioRef} src={job.audioUrl} controls
             onTimeUpdate={(e) => setCurrentTime(e.target.currentTime)}
+            onLoadedMetadata={(e) => {
+              // Fresh browser recordings (webm) report Infinity duration and
+              // refuse to seek; forcing a far seek makes Chrome compute the
+              // real duration so timestamp clicks work.
+              const a = e.target
+              if (a.duration === Infinity) {
+                a.currentTime = 1e7
+                a.ontimeupdate = () => {
+                  a.ontimeupdate = null
+                  a.currentTime = 0
+                }
+              }
+            }}
           />
         ) : (
           <span className="player-note">

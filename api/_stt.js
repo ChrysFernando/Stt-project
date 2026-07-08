@@ -13,6 +13,8 @@ const MIME = {
 
 const MAX_GAP_SECONDS = 1.0
 const MIN_SENTENCE_SECONDS = 3 // merge very short sentences with the next one
+const PHRASE_GAP_SECONDS = 0.5 // breathing pause — split here when speech has no punctuation
+const PHRASE_MIN_SECONDS = 4 // only use breathing pauses once the segment is this long
 const MAX_SEGMENT_SECONDS = 18 // hard cap for run-on speech with no punctuation
 const SENTENCE_END = /[.!?…។॥෴]["'»”’)]*$/
 
@@ -62,8 +64,9 @@ function groupWords(words) {
       const speaker = speakerLabels.get(rawSpeaker)
       const speakerChanged = cur && cur.speaker !== speaker
       const bigGap = cur && w.start - cur.end > MAX_GAP_SECONDS
+      const breathPause = cur && w.start - cur.end > PHRASE_GAP_SECONDS && cur.end - cur.start >= PHRASE_MIN_SECONDS
       const tooLong = cur && w.end - cur.start > MAX_SEGMENT_SECONDS
-      if (speakerChanged || bigGap || tooLong) flush()
+      if (speakerChanged || bigGap || breathPause || tooLong) flush()
       if (!cur) cur = { speaker, start: w.start ?? 0, end: w.end ?? 0, text: '', logprobs: [] }
       cur.text += w.text
       cur.end = w.end ?? cur.end
