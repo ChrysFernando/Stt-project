@@ -60,6 +60,23 @@ module.exports = async (req, res) => {
       await audit(sql, user, 'Admin', `Changed role of ${target.email} to ${role}`, req)
       return res.json({ ok: true })
     }
+    if (action === 'delete') {
+      if (target.id === user.id) return res.status(400).json({ error: 'You cannot remove your own account.' })
+      // Never remove the last remaining active user manager.
+      const managers = await sql`
+        SELECT count(*)::int AS n FROM users u JOIN roles r ON r.id = u.role_id
+        WHERE u.active AND u.id <> ${id} AND r.perms @> '["Manage users & roles"]'`
+      const targetIsManager = (await sql`
+        SELECT r.perms @> '["Manage users & roles"]' AS m FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = ${id}`)[0].m
+      if (targetIsManager && managers[0].n === 0) {
+        return res.status(400).json({ error: 'Cannot remove the last administrator account.' })
+      }
+      await sql`UPDATE transcripts SET owner_id = NULL WHERE owner_id = ${id}`
+      await sql`DELETE FROM sessions WHERE user_id = ${id}`
+      await sql`DELETE FROM users WHERE id = ${id}`
+      await audit(sql, user, 'Admin', `Permanently removed account ${target.email} (${target.role})`, req)
+      return res.json({ ok: true })
+    }
     return res.status(400).json({ error: 'Unknown action.' })
   }
 

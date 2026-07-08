@@ -8,6 +8,7 @@ export default function UsersView() {
   const [form, setForm] = useState({ name: '', email: '', role: 'Transcription Clerk', password: '' })
   const [error, setError] = useState(null)
   const [pwFor, setPwFor] = useState(null) // { id, value } while resetting a password
+  const [delFor, setDelFor] = useState(null) // user id pending removal confirmation
 
   async function refresh() {
     try {
@@ -98,16 +99,25 @@ export default function UsersView() {
                         }}>Set</button>
                         <button className="btn secondary small" onClick={() => setPwFor(null)}>✕</button>
                       </span>
+                    ) : delFor === u.id ? (
+                      <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                        <span style={{ fontSize: 12.5, color: 'var(--red)', fontWeight: 600 }}>Remove permanently?</span>
+                        <button className="btn danger-ghost small" onClick={async () => {
+                          if (await run(() => userAction(u.id, 'delete'))) setDelFor(null)
+                        }}>Yes, remove</button>
+                        <button className="btn secondary small" onClick={() => setDelFor(null)}>Cancel</button>
+                      </span>
                     ) : (
                       <>
                         <button className="btn secondary small" onClick={() => setPwFor({ id: u.id, value: '' })}>
                           Reset password
                         </button>{' '}
                         {u.active ? (
-                          <button className="btn danger-ghost small" onClick={() => run(() => userAction(u.id, 'toggle'))}>Deactivate</button>
+                          <button className="btn secondary small" onClick={() => run(() => userAction(u.id, 'toggle'))}>Deactivate</button>
                         ) : (
                           <button className="btn secondary small" onClick={() => run(() => userAction(u.id, 'toggle'))}>Reactivate</button>
-                        )}
+                        )}{' '}
+                        <button className="btn danger-ghost small" onClick={() => setDelFor(u.id)}>Remove</button>
                       </>
                     )}
                   </td>
