@@ -9,14 +9,15 @@ module.exports = async (req, res) => {
 
   if (req.method === 'GET') {
     const rows = await sql`
-      SELECT u.id, u.name, u.email, u.active, r.name AS role,
+      SELECT u.id, u.name, u.email, u.active, u.designation,
+             u.must_change_password AS "pendingFirstLogin", r.name AS role,
              to_char(u.last_login, 'YYYY-MM-DD HH24:MI') AS last_login
       FROM users u JOIN roles r ON r.id = u.role_id ORDER BY u.id`
     return res.json(rows.map((r) => ({ ...r, lastLogin: r.last_login || '—' })))
   }
 
   if (req.method === 'POST') {
-    const { name, email, role, password } = req.body || {}
+    const { name, email, role, password, designation } = req.body || {}
     if (!name || !email || !role || !password) {
       return res.status(400).json({ error: 'Name, email, role and password are required.' })
     }
@@ -27,8 +28,9 @@ module.exports = async (req, res) => {
     const dup = await sql`SELECT id FROM users WHERE lower(email) = ${String(email).toLowerCase()}`
     if (dup[0]) return res.status(409).json({ error: 'An account with this email already exists.' })
 
-    await sql`INSERT INTO users (name, email, password_hash, role_id)
-              VALUES (${name}, ${email}, ${hashPassword(password)}, ${roleRows[0].id})`
+    // The password set here is temporary: the user must replace it at first sign-in.
+    await sql`INSERT INTO users (name, email, password_hash, role_id, designation, must_change_password)
+              VALUES (${name}, ${email}, ${hashPassword(password)}, ${roleRows[0].id}, ${designation || null}, TRUE)`
     await audit(sql, user, 'Admin', `Created account ${email} (${role})`, req)
     return res.json({ ok: true })
   }
@@ -48,14 +50,30 @@ module.exports = async (req, res) => {
     if (action === 'setPassword') {
       const policyError = passwordPolicyError(password || '', settings)
       if (policyError) return res.status(400).json({ error: policyError })
-      await sql`UPDATE users SET password_hash = ${hashPassword(password)} WHERE id = ${id}`
+      await sql`UPDATE users SET password_hash = ${hashPassword(password)}, must_change_password = TRUE WHERE id = ${id}`
       await sql`DELETE FROM sessions WHERE user_id = ${id} AND id <> ${ctx.sid}`
-      await audit(sql, user, 'Admin', `Reset password for ${target.email}`, req)
+      await audit(sql, user, 'Admin', `Reset password for ${target.email} (temporary — must be changed at next sign-in)`, req)
       return res.json({ ok: true })
     }
     if (action === 'setRole') {
-      const roleRows = await sql`SELECT id FROM roles WHERE name = ${role}`
+      if (target.id === user.id) {
+        return res.status(400).json({ error: 'You cannot change your own role — ask another administrator.' })
+      }
+      const roleRows = await sql`SELECT id, perms FROM roles WHERE name = ${role}`
       if (!roleRows[0]) return res.status(400).json({ error: 'Unknown role.' })
+      // Never demote the last remaining active user-manager.
+      const targetIsManager = (await sql`
+        SELECT r.perms @> '["Manage users & roles"]' AS m
+        FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = ${id}`)[0].m
+      const newRoleIsManager = roleRows[0].perms.includes('Manage users & roles')
+      if (targetIsManager && !newRoleIsManager) {
+        const others = await sql`
+          SELECT count(*)::int AS n FROM users u JOIN roles r ON r.id = u.role_id
+          WHERE u.active AND u.id <> ${id} AND r.perms @> '["Manage users & roles"]'`
+        if (others[0].n === 0) {
+          return res.status(400).json({ error: 'Cannot demote the last administrator account.' })
+        }
+      }
       await sql`UPDATE users SET role_id = ${roleRows[0].id} WHERE id = ${id}`
       await audit(sql, user, 'Admin', `Changed role of ${target.email} to ${role}`, req)
       return res.json({ ok: true })

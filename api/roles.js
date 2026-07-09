@@ -1,10 +1,5 @@
 const { requireAuth } = require('./_auth.js')
-const { audit } = require('./_db.js')
-
-const ALL_PERMS = [
-  'Upload audio', 'View transcripts', 'Edit transcripts', 'Export documents',
-  'Manage classifications', 'Manage users & roles', 'View audit logs',
-]
+const { audit, ALL_PERMS } = require('./_db.js')
 
 module.exports = async (req, res) => {
   const ctx = await requireAuth(req, res, req.method === 'GET' ? 'Manage users & roles' : 'Manage users & roles')

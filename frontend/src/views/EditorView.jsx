@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import Icon from '../icons.jsx'
-import { getJobById, saveSegments, setClassification, reportExport } from '../api.js'
+import { getJobById, saveSegments, setClassification, deleteJob, reportExport } from '../api.js'
 import { exportTxt, exportSrt, exportDocx, exportPdf } from '../exports.js'
 
 const TIER_COLOR = { Public: 'green', Restricted: 'amber', Confidential: 'red' }
@@ -11,7 +11,7 @@ function formatTime(sec) {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
-export default function EditorView({ user, jobId, onBack }) {
+export default function EditorView({ user, jobId, onBack, onDeleted }) {
   const [job, setJob] = useState(null)
   const [loading, setLoading] = useState(true)
   const [segments, setSegments] = useState([])
@@ -21,6 +21,7 @@ export default function EditorView({ user, jobId, onBack }) {
   const [rename, setRename] = useState(null) // { from, to }
   const [speakerMenu, setSpeakerMenu] = useState(null) // segment id with open menu
   const [newSpeaker, setNewSpeaker] = useState(null) // text while adding a new speaker
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const audioRef = useRef(null)
 
   useEffect(() => {
@@ -52,6 +53,8 @@ export default function EditorView({ user, jobId, onBack }) {
     )
   }
 
+  const can = (p) => user.perms.includes(p)
+  const canEdit = can('Edit transcripts')
   const speakerNames = [...new Set(segments.map((s) => s.speaker))]
   const speakerColor = (name) => `sp-${speakerNames.indexOf(name) % 5}`
   const textOf = (seg) => seg.text
@@ -127,21 +130,36 @@ export default function EditorView({ user, jobId, onBack }) {
           <select
             className="class-select" value={tier}
             onChange={(e) => changeTier(e.target.value)}
-            title="Data classification"
+            disabled={!can('Manage classifications')}
+            title={can('Manage classifications') ? 'Data classification' : 'Classification changes need the "Manage classifications" permission'}
             style={{ color: `var(--${TIER_COLOR[tier]})` }}
           >
             <option>Public</option>
             <option>Restricted</option>
             <option>Confidential</option>
           </select>
-          <button className="btn secondary small" onClick={copyAll} title="Copy the whole transcript — paste into Word, Notepad or any app">
-            Copy all
-          </button>
-          <button className="btn secondary small" onClick={() => doExport('TXT')}><Icon name="download" size={14} /> TXT</button>
-          <button className="btn secondary small" onClick={() => doExport('DOCX')}><Icon name="download" size={14} /> DOCX</button>
-          <button className="btn secondary small" onClick={() => doExport('PDF')}><Icon name="download" size={14} /> PDF</button>
-          <button className="btn secondary small" onClick={() => doExport('SRT')}><Icon name="download" size={14} /> SRT</button>
-          <button className="btn small" onClick={handleSave}>Save changes</button>
+          {can('Export documents') && (
+            <>
+              <button className="btn secondary small" onClick={copyAll} title="Copy the whole transcript — paste into Word, Notepad or any app">
+                Copy all
+              </button>
+              <button className="btn secondary small" onClick={() => doExport('TXT')}><Icon name="download" size={14} /> TXT</button>
+              <button className="btn secondary small" onClick={() => doExport('DOCX')}><Icon name="download" size={14} /> DOCX</button>
+              <button className="btn secondary small" onClick={() => doExport('PDF')}><Icon name="download" size={14} /> PDF</button>
+              <button className="btn secondary small" onClick={() => doExport('SRT')}><Icon name="download" size={14} /> SRT</button>
+            </>
+          )}
+          {can('Delete transcripts') && (confirmDelete ? (
+            <>
+              <button className="btn danger-ghost small" onClick={async () => {
+                try { await deleteJob(jobId); onDeleted() } catch (e) { alert(e.message) }
+              }}>Confirm delete</button>
+              <button className="btn secondary small" onClick={() => setConfirmDelete(false)}>Cancel</button>
+            </>
+          ) : (
+            <button className="btn danger-ghost small" onClick={() => setConfirmDelete(true)}>Delete</button>
+          ))}
+          {canEdit && <button className="btn small" onClick={handleSave}>Save changes</button>}
         </div>
       </div>
 
@@ -194,11 +212,11 @@ export default function EditorView({ user, jobId, onBack }) {
               </button>
               <br />
               <button
-                className={`speaker-tag editable ${speakerColor(seg.speaker)}`}
-                onClick={() => { setSpeakerMenu(speakerMenu === seg.id ? null : seg.id); setNewSpeaker(null) }}
-                title="Tap to change or rename this speaker"
+                className={`speaker-tag ${canEdit ? 'editable' : ''} ${speakerColor(seg.speaker)}`}
+                onClick={() => { if (canEdit) { setSpeakerMenu(speakerMenu === seg.id ? null : seg.id); setNewSpeaker(null) } }}
+                title={canEdit ? 'Tap to change or rename this speaker' : seg.speaker}
               >
-                {seg.speaker} <Icon name="edit" size={10} />
+                {seg.speaker} {canEdit && <Icon name="edit" size={10} />}
               </button>
               {speakerMenu === seg.id && (
                 <div className="speaker-menu">
@@ -239,7 +257,8 @@ export default function EditorView({ user, jobId, onBack }) {
               <textarea
                 rows={Math.max(1, Math.ceil(seg.text.length / 70))}
                 value={seg.text}
-                onChange={(e) => updateText(seg.id, e.target.value)}
+                readOnly={!canEdit}
+                onChange={(e) => canEdit && updateText(seg.id, e.target.value)}
               />
             </div>
           </div>

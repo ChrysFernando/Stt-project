@@ -54,7 +54,7 @@ async function requireAuth(req, res, permission) {
   const settings = await getSettings(sql)
   const rows = await sql`
     SELECT s.id AS sid, s.expires_at, u.id, u.name, u.email, u.active,
-           r.name AS role, r.perms
+           u.must_change_password, r.name AS role, r.perms
     FROM sessions s
     JOIN users u ON u.id = s.user_id
     JOIN roles r ON r.id = u.role_id
@@ -71,7 +71,7 @@ async function requireAuth(req, res, permission) {
   await sql`UPDATE sessions SET expires_at = now() + make_interval(mins => ${settings.session_timeout_mins})
             WHERE id = ${row.sid}`
 
-  const user = { id: row.id, name: row.name, email: row.email, role: row.role, perms: row.perms }
+  const user = { id: row.id, name: row.name, email: row.email, role: row.role, perms: row.perms, mustChangePassword: row.must_change_password }
   if (permission && !user.perms.includes(permission)) {
     await audit(sql, user, 'Admin', `DENIED: attempted "${permission}"`, req)
     res.status(403).json({ error: `Your role does not include the "${permission}" permission.` })

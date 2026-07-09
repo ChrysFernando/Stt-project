@@ -52,7 +52,7 @@ module.exports = async (req, res) => {
   }
 
   if (req.method === 'DELETE') {
-    const ctx = await requireAuth(req, res, 'Manage classifications')
+    const ctx = await requireAuth(req, res, 'Delete transcripts')
     if (!ctx) return
     const rows = await ctx.sql`DELETE FROM transcripts WHERE id = ${id} RETURNING file_name, audio_url`
     if (!rows[0]) return res.status(404).json({ error: 'Not found' })

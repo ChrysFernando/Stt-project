@@ -47,6 +47,10 @@ export async function logout() {
   try { await call('/auth/logout', { method: 'POST' }) } catch { /* session already gone */ }
 }
 
+export async function changePassword(currentPassword, newPassword) {
+  await call('/auth/change-password', { method: 'POST', body: { currentPassword, newPassword } })
+}
+
 export async function me() {
   try {
     const data = await call('/auth/me')
@@ -133,6 +137,10 @@ export async function setClassification(jobId, tier) {
   await call(`/transcriptions/item?id=${encodeURIComponent(jobId)}`, { method: 'PUT', body: { classification: tier } })
 }
 
+export async function deleteJob(id) {
+  await call(`/transcriptions/item?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+}
+
 // Exports happen in the browser; report them so the audit log is complete.
 export function reportExport(detail) {
   call('/audit', { method: 'POST', body: { action: 'Export', detail } }).catch(() => {})
@@ -144,9 +152,11 @@ export const PERMISSIONS = [
   'Upload audio',
   'View transcripts',
   'Edit transcripts',
+  'Delete transcripts',
   'Export documents',
   'Manage classifications',
   'Manage users & roles',
+  'Manage settings',
   'View audit logs',
 ]
 

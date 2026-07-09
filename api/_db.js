@@ -3,6 +3,12 @@ const { neon } = require('@neondatabase/serverless')
 const crypto = require('node:crypto')
 const { hashPassword } = require('./_crypto.js')
 
+const ALL_PERMS = [
+  'Upload audio', 'View transcripts', 'Edit transcripts', 'Delete transcripts',
+  'Export documents', 'Manage classifications', 'Manage users & roles',
+  'Manage settings', 'View audit logs',
+]
+
 const DB_URL = () =>
   process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.DATABASE_URL_UNPOOLED || null
 
@@ -49,16 +55,18 @@ async function ensureSchema(sql) {
     max_concurrent_sessions INT NOT NULL DEFAULT 1,
     storage_mode TEXT NOT NULL DEFAULT 'Cloud')`
 
+  // Column migrations for databases created before these features existed.
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT FALSE`
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_attempts INT NOT NULL DEFAULT 0`
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_until TIMESTAMPTZ`
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS designation TEXT`
+
   await sql`INSERT INTO settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING`
 
   // Session-signing secret lives in the DB so no extra env var is needed.
   await sql`INSERT INTO app_config (key, value) VALUES ('session_secret', ${crypto.randomBytes(32).toString('hex')})
             ON CONFLICT (key) DO NOTHING`
 
-  const ALL_PERMS = [
-    'Upload audio', 'View transcripts', 'Edit transcripts', 'Export documents',
-    'Manage classifications', 'Manage users & roles', 'View audit logs',
-  ]
   const roleCount = await sql`SELECT count(*)::int AS n FROM roles`
   if (roleCount[0].n === 0) {
     await sql`INSERT INTO roles (name, built_in, perms) VALUES
@@ -77,6 +85,10 @@ async function ensureSchema(sql) {
     await sql`INSERT INTO audit_events (user_name, action, detail, ip)
       VALUES ('system', 'Admin', 'Initial administrator account seeded', 'server')`
   }
+
+  // The Administrator role always carries every permission, including ones
+  // added after the database was first created.
+  await sql`UPDATE roles SET perms = ${JSON.stringify(ALL_PERMS)} WHERE name = 'Administrator'`
 }
 
 // Returns a ready-to-use sql client (schema ensured once per instance).
@@ -99,4 +111,4 @@ async function audit(sql, user, action, detail, req) {
     VALUES (${user ? user.id : null}, ${user ? user.name : 'anonymous'}, ${action}, ${detail}, ${ip})`
 }
 
-module.exports = { db, audit, isDbConfigured }
+module.exports = { db, audit, isDbConfigured, ALL_PERMS }

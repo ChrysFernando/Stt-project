@@ -5,8 +5,9 @@ import { listUsers, createUser, userAction, listRoles } from '../api.js'
 export default function UsersView() {
   const [users, setUsers] = useState([])
   const [roles, setRoles] = useState([])
-  const [form, setForm] = useState({ name: '', email: '', role: 'Transcription Clerk', password: '' })
+  const [form, setForm] = useState({ name: '', email: '', designation: '', role: 'Transcription Clerk', password: '' })
   const [error, setError] = useState(null)
+  const [issued, setIssued] = useState(null) // { email, password } shown once after creation
   const [pwFor, setPwFor] = useState(null) // { id, value } while resetting a password
   const [delFor, setDelFor] = useState(null) // user id pending removal confirmation
 
@@ -33,11 +34,26 @@ export default function UsersView() {
     }
   }
 
+  function generatePassword() {
+    const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
+    const lower = 'abcdefghijkmnopqrstuvwxyz'
+    const digits = '23456789'
+    const symbols = '!@#$%&*'
+    const all = upper + lower + digits + symbols
+    const pick = (set) => set[Math.floor(Math.random() * set.length)]
+    let pw = pick(upper) + pick(lower) + pick(digits) + pick(symbols)
+    for (let i = 0; i < 10; i++) pw += pick(all)
+    setForm({ ...form, password: pw })
+  }
+
   async function create(e) {
     e.preventDefault()
     if (!form.name.trim() || !form.email.trim() || !form.password) return
     const ok = await run(() => createUser(form))
-    if (ok) setForm({ name: '', email: '', role: form.role, password: '' })
+    if (ok) {
+      setIssued({ email: form.email, password: form.password })
+      setForm({ name: '', email: '', designation: '', role: form.role, password: '' })
+    }
   }
 
   return (
@@ -49,17 +65,33 @@ export default function UsersView() {
 
       {error && <div className="preview-banner" style={{ color: 'var(--red)', borderColor: 'rgba(240,101,90,0.4)', background: 'var(--red-soft)' }}>{error}</div>}
 
+      {issued && (
+        <div className="audit-banner" style={{ flexWrap: 'wrap' }}>
+          <Icon name="check" size={15} />
+          Account for <b>{issued.email}</b> created. Temporary password:&nbsp;
+          <b className="mono" style={{ userSelect: 'all' }}>{issued.password}</b>
+          &nbsp;— share it privately; the user must replace it at first sign-in. Shown only once.
+          <button className="btn secondary small" style={{ marginLeft: 'auto' }} onClick={() => setIssued(null)}>Dismiss</button>
+        </div>
+      )}
+
       <div className="card">
         <form className="inline-form" onSubmit={create}>
           <input placeholder="Full name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           <input placeholder="Email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+          <input placeholder="Designation (optional)" value={form.designation} onChange={(e) => setForm({ ...form, designation: e.target.value })} />
           <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
             {roles.map((r) => <option key={r.id}>{r.name}</option>)}
           </select>
-          <input placeholder="Initial password" type="password" autoComplete="new-password"
+          <input placeholder="Temporary password" type="text" autoComplete="new-password"
             value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+          <button className="btn secondary small" type="button" onClick={generatePassword}>Generate</button>
           <button className="btn small" type="submit"><Icon name="plus" size={14} /> Add user</button>
         </form>
+        <p className="muted" style={{ padding: '10px 18px 14px', fontSize: 12, borderBottom: '1px solid var(--border-soft)' }}>
+          New accounts receive a temporary password and must set their own private
+          password at first sign-in. Five failed sign-ins lock an account for 15 minutes.
+        </p>
 
         <div className="table-wrap">
           <table>
@@ -69,7 +101,10 @@ export default function UsersView() {
             <tbody>
               {users.map((u) => (
                 <tr key={u.id}>
-                  <td><b>{u.name}</b></td>
+                  <td>
+                    <b>{u.name}</b>
+                    {u.designation ? <span className="muted" style={{ display: 'block', fontSize: 11.5 }}>{u.designation}</span> : null}
+                  </td>
                   <td className="muted">{u.email}</td>
                   <td>
                     <select
@@ -80,9 +115,11 @@ export default function UsersView() {
                     </select>
                   </td>
                   <td>
-                    {u.active
-                      ? <span className="badge green">Active</span>
-                      : <span className="badge grey">Deactivated</span>}
+                    {!u.active
+                      ? <span className="badge grey">Deactivated</span>
+                      : u.pendingFirstLogin
+                        ? <span className="badge amber">Pending first sign-in</span>
+                        : <span className="badge green">Active</span>}
                   </td>
                   <td className="muted mono">{u.lastLogin}</td>
                   <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>

@@ -2,6 +2,13 @@ import { useEffect, useState } from 'react'
 import Icon from '../icons.jsx'
 import { listRoles, toggleRolePerm, createRole, PERMISSIONS } from '../api.js'
 
+const ROLE_DESCRIPTIONS = {
+  Administrator: 'Full control of the system, accounts and security settings.',
+  'Transcription Clerk': 'Uploads and dictates audio, corrects and exports transcripts.',
+  'Legal Researcher': 'Reads and exports transcripts; cannot change anything.',
+  Auditor: 'Reviews transcripts and the full audit trail; read-only.',
+}
+
 export default function RolesView() {
   const [roles, setRoles] = useState([])
   const [error, setError] = useState(null)
@@ -51,7 +58,9 @@ export default function RolesView() {
         {roles.map((r) => (
           <div key={r.id} className="card role-card">
             <h3><Icon name="shield" size={15} /> {r.name}</h3>
-            <p className="muted">{r.builtIn ? 'Built-in role' : 'Custom role'} · {r.perms.length} permissions</p>
+            <p className="muted">
+              {ROLE_DESCRIPTIONS[r.name] || 'Custom role'} · {r.perms.length} permissions
+            </p>
             {PERMISSIONS.map((p) => {
               const granted = r.perms.includes(p)
               return (

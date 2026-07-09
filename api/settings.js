@@ -2,7 +2,7 @@ const { requireAuth } = require('./_auth.js')
 const { audit } = require('./_db.js')
 
 module.exports = async (req, res) => {
-  const ctx = await requireAuth(req, res, 'Manage users & roles')
+  const ctx = await requireAuth(req, res, 'Manage settings')
   if (!ctx) return
   const { sql, user } = ctx
 

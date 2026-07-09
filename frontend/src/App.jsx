@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import Icon from './icons.jsx'
 import LoginView from './views/LoginView.jsx'
+import ChangePasswordView from './views/ChangePasswordView.jsx'
 import DashboardView from './views/DashboardView.jsx'
 import UploadView from './views/UploadView.jsx'
 import RecordView from './views/RecordView.jsx'
@@ -78,6 +79,10 @@ export default function App() {
     return <LoginView onLogin={(u) => { setUser(u); setView('dashboard') }} />
   }
 
+  if (user.mustChangePassword) {
+    return <ChangePasswordView user={user} onDone={() => setUser({ ...user, mustChangePassword: false })} />
+  }
+
   const can = (p) => user.perms.includes(p)
   const NAV = [
     {
@@ -95,7 +100,7 @@ export default function App() {
         { id: 'users', label: 'User Accounts', icon: 'users', show: can('Manage users & roles') },
         { id: 'roles', label: 'Roles & Permissions', icon: 'shield', show: can('Manage users & roles') },
         { id: 'audit', label: 'Audit Log', icon: 'list', show: can('View audit logs') },
-        { id: 'settings', label: 'Settings', icon: 'sliders', show: can('Manage users & roles') },
+        { id: 'settings', label: 'Settings', icon: 'sliders', show: can('Manage settings') },
       ],
     },
   ]
@@ -169,12 +174,16 @@ export default function App() {
           <TranscriptsView jobs={jobs} onOpen={openTranscript} onRefresh={refreshJobs} />
         )}
         {view === 'editor' && openJobId && (
-          <EditorView user={user} jobId={openJobId} onBack={() => setView('transcripts')} />
+          <EditorView
+            user={user} jobId={openJobId}
+            onBack={() => setView('transcripts')}
+            onDeleted={() => { refreshJobs(); setView('transcripts') }}
+          />
         )}
         {view === 'users' && can('Manage users & roles') && <UsersView />}
         {view === 'roles' && can('Manage users & roles') && <RolesView />}
         {view === 'audit' && can('View audit logs') && <AuditView />}
-        {view === 'settings' && can('Manage users & roles') && <SettingsView />}
+        {view === 'settings' && can('Manage settings') && <SettingsView />}
       </main>
     </div>
   )

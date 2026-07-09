@@ -20,7 +20,20 @@ module.exports = async (req, res) => {
     WHERE lower(u.email) = ${String(email).toLowerCase()}`
   const user = rows[0]
 
+  if (user && user.locked_until && new Date(user.locked_until) > new Date()) {
+    await audit(sql, user, 'Login', 'DENIED: account locked (too many failed attempts)', req)
+    return res.status(423).json({ error: 'Account temporarily locked after repeated failed attempts. Try again in a few minutes.' })
+  }
   if (!user || !verifyPassword(password, user.password_hash)) {
+    if (user) {
+      const attempts = (user.failed_attempts || 0) + 1
+      if (attempts >= 5) {
+        await sql`UPDATE users SET failed_attempts = 0, locked_until = now() + interval '15 minutes' WHERE id = ${user.id}`
+        await audit(sql, user, 'Login', 'Account locked for 15 minutes after 5 failed attempts', req)
+      } else {
+        await sql`UPDATE users SET failed_attempts = ${attempts} WHERE id = ${user.id}`
+      }
+    }
     await audit(sql, { id: user ? user.id : null, name: email }, 'Login', 'FAILED sign-in attempt', req)
     return res.status(401).json({ error: 'Incorrect email or password.' })
   }
@@ -28,6 +41,7 @@ module.exports = async (req, res) => {
     await audit(sql, user, 'Login', 'DENIED: account deactivated', req)
     return res.status(403).json({ error: 'This account has been deactivated.' })
   }
+  await sql`UPDATE users SET failed_attempts = 0, locked_until = NULL WHERE id = ${user.id}`
 
   const settings = await getSettings(sql)
 
@@ -49,6 +63,9 @@ module.exports = async (req, res) => {
   const token = signToken({ sid }, await getSecret(sql))
   setSessionCookie(res, token, 60 * 60 * 12) // cookie lifetime; real timeout enforced server-side
   res.json({
-    user: { id: user.id, name: user.name, email: user.email, role: user.role, perms: user.perms },
+    user: {
+      id: user.id, name: user.name, email: user.email, role: user.role,
+      perms: user.perms, mustChangePassword: user.must_change_password,
+    },
   })
 }
